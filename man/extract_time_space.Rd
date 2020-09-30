@@ -15,3 +15,13 @@ list of datetimes and depths
 \description{
 Extracts time (from date column) and space (aka depth) information
 }
+\examples{
+\dontrun{
+wtemp <- data.frame(
+  date = c("1979-04-02", "1979-04-02"),
+  temp_0 = c(0, 0),
+  temp_1 = c(1, 1),
+  stringsAsFactors = FALSE)
+extract_time_space(wtemp)
+}
+}

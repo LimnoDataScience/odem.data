@@ -20,6 +20,14 @@ calc_dens <- function(wtemp){
 #' @param wtemp matrix; Water temperatures (rows correspond to time, cols to depth)
 #' @return list of datetimes and depths
 #' @export
+#' @examples \dontrun{
+#' wtemp <- data.frame(
+#'   date = c("1979-04-02", "1979-04-02"),
+#'   temp_0 = c(0, 0),
+#'   temp_1 = c(1, 1),
+#'   stringsAsFactors = FALSE)
+#' extract_time_space(wtemp)
+#' }
 extract_time_space <- function(wtemp){
   time <- as.Date(as.character(wtemp$date))
   depth <- sub("^[^_]*_", "", colnames(wtemp[2:ncol(wtemp)]))
@@ -254,6 +262,7 @@ calc_epil_hypo_vol <- function(H,A,td.depth,vol_total){
 #' @param A areas
 #' @return vector of thermocline depths in m
 #' @export
+#'
 input <- function(wtemp, H, A){
   grd.info       <- extract_time_space(wtemp)
   td.depth       <- calc_td_depth(wtemp)
