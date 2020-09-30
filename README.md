@@ -1,11 +1,11 @@
 # odem.data
 
-This R-package is still under development and functions are likely to change with future updates. `odem.data` is maintained by UW-Madison Center for Limnology. All data were obtained from online repositories, e.g. NTL-LTER and the USGS Water Quality Portal.
+Data preprocessing for the Oxygen DEpletion Model (ODEM) 
 
 ## Installation
 
 ```r
-remotes::install_github("LynetteGao/odem.data")
+remotes::install_github("jsta/odem.data")
 ```
 
 ## Usage
@@ -58,6 +58,7 @@ make all
 |wind              |
 |airtemp           |
 
-## Postscript
+-----
 
-This project is part of the Data Science Initiative at UW-Madison.
+This R-package is still under development and functions are likely to change with future updates. `odem.data` is maintained by UW-Madison Center for Limnology. All data were obtained from online repositories, e.g. NTL-LTER and the USGS Water Quality Portal. This project is part of the Data Science Initiative at UW-Madison. 
+ 
