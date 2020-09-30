@@ -23,18 +23,6 @@ Imports:
     pracma,
     lubridate,
     zoo
-Suggests:
-    ggplot2,
-    readr,
-    adagio,
-    GenSA,
-    RPostgreSQL,
-    odbc,
-    berryFunctions,
-    signal,
-    Hmisc,
-    broom,
-    patchwork
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
