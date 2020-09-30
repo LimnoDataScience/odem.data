@@ -18,7 +18,7 @@ source("analysis/scripts/01_data_merge.R")
 
 ```bash
 # or build odem input data for a specific lake using the command line
-make analysis/data/143249470_(Mendota)/input.txt
+make analysis/data/143249470_Mendota/input.txt
 
 # build odem input data for all lakes using the command line
 make all
