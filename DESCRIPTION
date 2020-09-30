@@ -3,6 +3,7 @@ Type: Package
 Title: Data preprocessing for ODEM
 Version: 0.1.0
 URL: https://github.com/jsta/odem.data
+BugReports: https://github.com/jsta/odem.data/issues
 Author: Authors@R: c( person("Lynette", "Gao", role = c("aut","cre"),
     email = "qgao38@wisc.edu"),
     person("Robert", "Ladwig", role = "aut",
@@ -16,13 +17,15 @@ Author: Authors@R: c( person("Lynette", "Gao", role = c("aut","cre"),
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: Data preprocessing for the Oxygen DEpletion Model (ODEM). 
 Imports: 
-    glmtools, 
-    dplyr,
     rLakeAnalyzer,
-    LakeMetabolizer,
     pracma,
     lubridate,
     zoo
+Suggests:
+    dplyr,
+    glmtools,
+    LakeMetabolizer,
+    testthat
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
