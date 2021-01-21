@@ -1,0 +1,114 @@
+&glm_setup
+   sim_name = 'nhdhr_91691383'
+   max_layers = 1000
+   min_layer_vol = 0.5
+   min_layer_thick = 0.2
+   max_layer_thick = 1
+   Kw = 0.4562976
+   coef_mix_conv = 0.2
+   coef_wind_stir = 0.23
+   coef_mix_shear = 0.2
+   coef_mix_turb = 0.51
+   coef_mix_KH = 0.3
+   coef_mix_hyp = 0.5695707
+/
+&morphometry
+   lake_name = 'nhdhr_91691383'
+   latitude = 45.01551
+   longitude = -92.92341
+   bsn_len = 894.8492
+   bsn_wid = 894.8492
+   bsn_vals = 39
+   H = 308.417541843185, 308.722341843185, 309.027141843185, 309.331941843185, 309.636741843185, 309.941541843185, 310.246341843185, 310.551141843185, 310.855941843185, 311.160741843185, 311.465541843185, 311.770341843185, 312.075141843185, 312.379941843185, 312.684741843185, 312.989541843185, 313.294341843185, 313.599141843185, 313.903941843185, 314.208741843185, 314.513541843185, 314.818341843185, 315.123141843185, 315.427941843185, 315.732741843185, 316.037541843185, 316.342341843185, 316.647141843185, 316.951941843185, 317.256741843185, 317.561541843185, 317.866341843185, 318.171141843185, 318.475941843185, 318.780741843185, 319.085541843185, 319.390341843185, 319.695141843185, 319.999941843185
+   A = 250.000198019248, 1375.00108910586, 14100.0111682856, 29875.0236633001, 41175.0326137701, 48375.0383167244, 55300.0438018576, 61925.0490493676, 68225.0540394527, 73850.0584948858, 79325.0628315073, 84700.0670889211, 90775.0719007888, 97125.0769304777, 103400.081900761, 109775.086950252, 116325.092138356, 123725.097999726, 131675.104296738, 139600.110573948, 148125.117326404, 157075.124415493, 167025.132296659, 179350.142059008, 196050.155286694, 221775.175662875, 249575.197682615, 280650.222296407, 316550.250731971, 351425.278355656, 385700.305504095, 423300.33528619, 467675.370434607, 508725.402949367, 536675.425087919, 556625.440889855, 575325.455701695, 595500.471681848, 623150.493582777
+/
+&time
+   timefmt = 2
+   start = '1979-04-01'
+   stop = '2019-12-31'
+   dt = 3600
+   timezone = 7
+/
+&output
+   out_dir = '.'
+   out_fn = 'output'
+   nsave = 24
+   csv_lake_fname = 'lake'
+   csv_point_nlevs = 0
+   csv_point_fname = 'WQ_'
+   csv_point_at = 17
+   csv_point_nvars = 2
+   csv_point_vars = 'temp','salt','OXY_oxy'
+   csv_outlet_allinone = .false.
+   csv_outlet_fname = 'outlet_'
+   csv_outlet_nvars = 3
+   csv_outlet_vars = 'flow','temp','salt','OXY_oxy'
+   csv_ovrflw_fname = 'overflow'
+/
+&init_profiles
+   lake_depth = 11.5824
+   num_depths = 2
+   the_depths = 0, 11.58
+   the_temps = 3, 4
+   the_sals = 0, 0, 0
+   num_wq_vars = 6
+   wq_names = 'OGM_don','OGM_pon','OGM_dop','OGM_pop','OGM_doc','OGM_poc'
+   wq_init_vals = 1.1, 1.2, 1.3, 1.2, 1.3, 2.1, 2.2, 2.3, 1.2, 1.3, 3.1, 3.2, 3.3, 1.2, 1.3, 4.1, 4.2, 4.3, 1.2, 1.3, 5.1, 5.2, 5.3, 1.2, 1.3, 6.1, 6.2, 6.3, 1.2, 1.3
+/
+&meteorology
+   met_sw = .true.
+   lw_type = 'LW_IN'
+   rain_sw = .false.
+   atm_stab = .false.
+   catchrain = .false.
+   rad_mode = 1
+   albedo_mode = 1
+   cloud_mode = 4
+   subdaily = .false.
+   meteo_fl = 'NLDAS_time[0.359420]_x[256]_y[160].csv'
+   wind_factor = 1
+   sw_factor = 1.120181
+   lw_factor = 1
+   at_factor = 1
+   rh_factor = 1
+   rain_factor = 1
+   ce = 0.0013
+   ch = 0.0014
+   cd = 0.0006160275
+   rain_threshold = 0.01
+   runoff_coef = 0.3
+/
+&bird_model
+   AP = 973
+   Oz = 0.279
+   WatVap = 1.1
+   AOD500 = 0.033
+   AOD380 = 0.038
+   Albedo = 0.2
+/
+&inflow
+   num_inflows = 0
+   names_of_strms = 'Riv1','Riv2'
+   subm_flag = .false., .false.
+   strm_hf_angle = 65, 65
+   strmbd_slope = 2, 2
+   strmbd_drag = 0.016, 0.016
+   inflow_factor = 1, 1
+   inflow_fl = 'inflow_1.csv','inflow_2.csv'
+   inflow_varnum = 4
+   inflow_vars = 'FLOW','TEMP','SALT','OXY_oxy','SIL_rsi','NIT_amm','NIT_nit','PHS_frp','OGM_don','OGM_pon','OGM_dop','OGM_pop','OGM_doc','OGM_poc','PHY_green','PHY_crypto','PHY_diatom'
+/
+&outflow
+   num_outlet = 0
+   flt_off_sw = .false.
+   outl_elvs = 1
+   bsn_len_outl = 5
+   bsn_wid_outl = 5
+   outflow_fl = 'outflow.csv'
+   outflow_factor = 0.8
+/
+&snowice
+   snow_albedo_factor = 1
+   snow_rho_max = 300
+   snow_rho_min = 50
+/

@@ -1,0 +1,114 @@
+&glm_setup
+   sim_name = 'nhdhr_120018133'
+   max_layers = 1000
+   min_layer_vol = 0.5
+   min_layer_thick = 0.2
+   max_layer_thick = 1.5
+   Kw = 0.6349428
+   coef_mix_conv = 0.2
+   coef_wind_stir = 0.23
+   coef_mix_shear = 0.2
+   coef_mix_turb = 0.51
+   coef_mix_KH = 0.3
+   coef_mix_hyp = 0.5
+/
+&morphometry
+   lake_name = 'nhdhr_120018133'
+   latitude = 44.87928
+   longitude = -93.60869
+   bsn_len = 1841.017
+   bsn_wid = 1841.017
+   bsn_vals = 71
+   H = 298.664, 298.9688, 299.2736, 299.5784, 299.8832, 300.188, 300.4928, 300.7976, 301.1024, 301.4072, 301.712, 302.0168, 302.3216, 302.6264, 302.9312, 303.236, 303.5408, 303.8456, 304.1504, 304.4552, 304.76, 305.0648, 305.3696, 305.6744, 305.9792, 306.284, 306.5888, 306.8936, 307.1984, 307.5032, 307.808, 308.1128, 308.4176, 308.7224, 309.0272, 309.332, 309.6368, 309.9416, 310.2464, 310.5512, 310.856, 311.1608, 311.4656, 311.7704, 312.0752, 312.38, 312.6848, 312.9896, 313.2944, 313.5992, 313.904, 314.2088, 314.5136, 314.8184, 315.1232, 315.428, 315.7328, 316.0376, 316.3424, 316.6472, 316.952, 317.2568, 317.5616, 317.8664, 318.1712, 318.476, 318.7808, 319.0856, 319.3904, 319.6952, 320
+   A = 1350.18806224867, 2450.341298155, 3150.43881191357, 4025.56070411179, 4925.68607894424, 5875.81841904516, 6925.96468968302, 8526.18757827404, 10326.4383279389, 12476.7378344831, 15052.0965458093, 17302.4099828904, 19102.6607325553, 20927.9149648545, 22778.1726797878, 24353.3920857446, 26578.7020401915, 28754.0050293699, 31029.3219490853, 33654.6876256799, 48231.7180014387, 56882.922992884, 63333.8215125165, 70334.7966501022, 78185.8901972519, 86412.0359839151, 95638.3210759478, 106739.867365548, 121341.901223941, 180875.193376054, 243733.94871852, 276438.504004099, 303017.20604429, 329320.869775505, 357449.787739019, 388054.050483323, 420733.602286268, 458163.815789717, 508145.777575552, 565353.745842681, 655316.276360658, 752604.827290465, 819939.206024459, 876022.017573047, 923428.620647556, 967459.753566444, 1010465.74369733, 1053571.74775875, 1099303.11749676, 1149460.10366104, 1202267.45898454, 1238197.46352994, 1268126.63224312, 1296205.54324136, 1324309.45772224, 1352938.44533844, 1380267.25185766, 1410821.50763669, 1439950.56490558, 1472555.10626062, 1513085.75161071, 1560667.37906366, 1627451.6811797, 1715438.93656958, 1836580.80993244, 1944270.80963809, 2048235.29043124, 2140623.15876474, 2224784.88131157, 2323198.58895992, 2719878.84095205
+/
+&time
+   timefmt = 2
+   start = '1979-04-01'
+   stop = '2019-12-31'
+   dt = 3600
+   timezone = 7
+/
+&output
+   out_dir = '.'
+   out_fn = 'output'
+   nsave = 24
+   csv_lake_fname = 'lake'
+   csv_point_nlevs = 0
+   csv_point_fname = 'WQ_'
+   csv_point_at = 17
+   csv_point_nvars = 2
+   csv_point_vars = 'temp','salt','OXY_oxy'
+   csv_outlet_allinone = .false.
+   csv_outlet_fname = 'outlet_'
+   csv_outlet_nvars = 3
+   csv_outlet_vars = 'flow','temp','salt','OXY_oxy'
+   csv_ovrflw_fname = 'overflow'
+/
+&init_profiles
+   lake_depth = 21.336
+   num_depths = 2
+   the_depths = 0, 21.33
+   the_temps = 3, 4
+   the_sals = 0, 0, 0
+   num_wq_vars = 6
+   wq_names = 'OGM_don','OGM_pon','OGM_dop','OGM_pop','OGM_doc','OGM_poc'
+   wq_init_vals = 1.1, 1.2, 1.3, 1.2, 1.3, 2.1, 2.2, 2.3, 1.2, 1.3, 3.1, 3.2, 3.3, 1.2, 1.3, 4.1, 4.2, 4.3, 1.2, 1.3, 5.1, 5.2, 5.3, 1.2, 1.3, 6.1, 6.2, 6.3, 1.2, 1.3
+/
+&meteorology
+   met_sw = .true.
+   lw_type = 'LW_IN'
+   rain_sw = .false.
+   atm_stab = .false.
+   catchrain = .false.
+   rad_mode = 1
+   albedo_mode = 1
+   cloud_mode = 4
+   subdaily = .false.
+   meteo_fl = 'NLDAS_time[0.359420]_x[251]_y[159].csv'
+   wind_factor = 1
+   sw_factor = 1.1
+   lw_factor = 1
+   at_factor = 1
+   rh_factor = 1
+   rain_factor = 1
+   ce = 0.0013
+   ch = 0.0014
+   cd = 0.001149365
+   rain_threshold = 0.01
+   runoff_coef = 0.3
+/
+&bird_model
+   AP = 973
+   Oz = 0.279
+   WatVap = 1.1
+   AOD500 = 0.033
+   AOD380 = 0.038
+   Albedo = 0.2
+/
+&inflow
+   num_inflows = 0
+   names_of_strms = 'Riv1','Riv2'
+   subm_flag = .false., .false.
+   strm_hf_angle = 65, 65
+   strmbd_slope = 2, 2
+   strmbd_drag = 0.016, 0.016
+   inflow_factor = 1, 1
+   inflow_fl = 'inflow_1.csv','inflow_2.csv'
+   inflow_varnum = 4
+   inflow_vars = 'FLOW','TEMP','SALT','OXY_oxy','SIL_rsi','NIT_amm','NIT_nit','PHS_frp','OGM_don','OGM_pon','OGM_dop','OGM_pop','OGM_doc','OGM_poc','PHY_green','PHY_crypto','PHY_diatom'
+/
+&outflow
+   num_outlet = 0
+   flt_off_sw = .false.
+   outl_elvs = 1
+   bsn_len_outl = 5
+   bsn_wid_outl = 5
+   outflow_fl = 'outflow.csv'
+   outflow_factor = 0.8
+/
+&snowice
+   snow_albedo_factor = 1
+   snow_rho_max = 300
+   snow_rho_min = 50
+/
