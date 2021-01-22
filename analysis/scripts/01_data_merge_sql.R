@@ -1,5 +1,5 @@
 # lake_id <- "nhdhr_120018114"
-password <- as.character(read.delim('R/password.R', header = FALSE, stringsAsFactor = FALSE))
+password <- as.character(read.delim('R/password.txt', header = FALSE, stringsAsFactor = FALSE))
 
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
