@@ -1,5 +1,6 @@
-# lake_id <- "nhdhr_120018114"
-password <- as.character(read.delim('analysis/scripts/password.txt', header = FALSE, stringsAsFactor = FALSE))
+if (!exists("password")){
+  password <- as.character(read.delim('analysis/scripts/password.txt', header = FALSE, stringsAsFactor = FALSE))
+}
 
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
@@ -17,28 +18,38 @@ if (length(args) > 0){
 }
 
 # helper functions used:
-#   input
+#     input
 #     extract_time_space
 #     calc_td_depth
 #     calc_metalimdepth
 #     calc_epil_hypo_temp
 #     calc_vol_total
 #     calc_epil_hypo_vol
+#     odem_static
+#     weigh_obs
 
 source("analysis/scripts/99_packages.R")
 
-# lake_id <- "analysis/data//141288680_(Fish)"
 print(paste0('Running ',lake_id))
 
 ###
 odbc::odbcListDrivers()
 drv = dbDriver("PostgreSQL")
-con <- dbConnect(drv, dbname = "UW_data_science",
-                 host = '144.92.62.199', port = 5432,
-                 user = "postgres", password = password)# use Sys.getenv() to mask password in the future
 
-nhdid <- lake_id#'nhdhr_74928647'
-#granb calibrated predicted tempereature data for nhdid
+tryCatch({
+  con <- dbConnect(drv, dbname = "UW_data_science",
+            host = '144.92.62.199', port = 5432,
+            user = "postgres", password = password)
+}, error = function(err) {
+  stop(print(paste("Server error:  ",err)))
+})
+
+# con <- dbConnect(drv, dbname = "UW_data_science",
+#                  host = '144.92.62.199', port = 5432,
+#                  user = "postgres", password = password)# use Sys.getenv() to mask password in the future
+
+nhdid <- lake_id
+#grab calibrated predicted tempereature data for nhdid
 wtr.data <- dbGetQuery(con,
                        paste("select * from data.predicted_temps_calibrated where \"nhd_lake_id\" = '",nhdid,"\'", sep = ''),
                        stringsAsFactors = FALSE)
@@ -182,23 +193,23 @@ khalf <- 500 # mg/m3
 startdate = 1
 enddate = nrow(input.values)
 
-o2 <- odem_static(input.values = input.values,
-                 nep = nep,
-                 min = min,
-                 sed = sed,
-             wind = wind,
-             khalf = khalf,
-             startdate = startdate,
-             enddate = enddate,
-             field.values = obs_weigh_df,
-             elev = 450)
-save(o2, file = paste0(folder_name, '/modeled_o2.RData'))
-
-print(o2$fit)
+# o2 <- odem_static(input.values = input.values,
+#                  nep = nep,
+#                  min = min,
+#                  sed = sed,
+#              wind = wind,
+#              khalf = khalf,
+#              startdate = startdate,
+#              enddate = enddate,
+#              field.values = obs_weigh_df,
+#              elev = 450)
+# save(o2, file = paste0(folder_name, '/modeled_o2.RData'))
+#
+# print(o2$fit)
 
 #
 init.val = c(5, 5, 5, 5)
-target.iter = 60
+target.iter = 100
 lb <<- c(100, -500, 100, 100)
 ub <<- c(5000, +500, 5000, 3000)
 
@@ -213,7 +224,23 @@ modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
                       wind = wind, elev = 450,
                       verbose = verbose, startdate = startdate, enddate = enddate)
 
-print(modelopt$fmin)
-print(lb+(ub - lb)/(10)*(modelopt$xmin))
-modelopt$xmin <- lb+(ub - lb)/(10)*(modelopt$xmin)
+modelopt$xmin_unscale <- lb+(ub - lb)/(10)*(modelopt$xmin)
+save(modelopt, file = paste0(folder_name, '/calibration_fit.RData'))
+
+o2 <- odem_static(input.values = input.values,
+                  nep = modelopt$xmin_unscale[1],
+                  min = modelopt$xmin_unscale[2],
+                  sed = modelopt$xmin_unscale[3],
+                  wind = wind,
+                  khalf = modelopt$xmin_unscale[4],
+                  startdate = startdate,
+                  enddate = enddate,
+                  field.values = obs_weigh_df,
+                  elev = 450)
+
+save(o2, file = paste0(folder_name, '/modeled_o2.RData'))
+
+ggsave(file = paste0(folder_name, '/timeseries.png'), o2$plot, dpi=300,width=350,height=300,units='mm')
+
+print(o2$fit)
 
