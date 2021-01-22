@@ -1,10 +1,10 @@
 # lake_id <- "nhdhr_120018114"
-password <- as.character(read.delim('R/password.txt', header = FALSE, stringsAsFactor = FALSE))
+password <- as.character(read.delim('analysis/scripts/password.txt', header = FALSE, stringsAsFactor = FALSE))
 
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
   lake_id   <- args[1]
-  (!exists("password")){
+  if (!exists("password")){
     password   <- args[2]
   }
 }else{
@@ -190,6 +190,30 @@ o2 <- odem_static(input.values = input.values,
              khalf = khalf,
              startdate = startdate,
              enddate = enddate,
-             field.values = obs_weigh_df)
+             field.values = obs_weigh_df,
+             elev = 450)
+save(o2, file = paste0(folder_name, '/modeled_o2.RData'))
 
 print(o2$fit)
+
+#
+init.val = c(5, 5, 5, 5)
+target.iter = 60
+lb <<- c(100, -500, 100, 100)
+ub <<- c(5000, +500, 5000, 3000)
+
+print('Start optimization')
+
+modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
+                      upper = rep(10,4), sigma = 0.5,
+                      stopfitness = -Inf,
+                      stopeval = target.iter,
+                      input.values = input.values,
+                      field.values = obs_weigh_df,
+                      wind = wind, elev = 450,
+                      verbose = verbose, startdate = startdate, enddate = enddate)
+
+print(modelopt$fmin)
+print(lb+(ub - lb)/(10)*(modelopt$xmin))
+modelopt$xmin <- lb+(ub - lb)/(10)*(modelopt$xmin)
+

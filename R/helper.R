@@ -660,7 +660,22 @@ odem_static<-function(input.values,
               'plot' = plot))
 }
 
+optim_odem_static <- function(p, input.values, nep = 1000, min = 100, sed = 3000,
+                     wind, khalf = 500, elev = NULL, verbose,  startdate = NULL, enddate = NULL, field.values){
 
+  p <- lb+(ub - lb)/(10)*(p)
+
+  o2 <- odem_static(input.values = input.values,
+                   nep = p[1],
+                   min = p[2],
+                   sed = p[3],
+                   wind = wind,
+                   khalf = p[4],
+               startdate = startdate, enddate = enddate,
+               field.values = obs_weigh_df, elev = elev)
+  print(o2$fit)
+  return(o2$fit)
+}
 
 
 #' check whether the flux is valid and return a valid flux
