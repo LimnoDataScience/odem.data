@@ -1,8 +1,12 @@
 # lake_id <- "nhdhr_120018114"
+password <- as.character(read.delim('R/password.R', header = FALSE, stringsAsFactor = FALSE))
+
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) > 0){
   lake_id   <- args[1]
-  password   <- args[2]
+  (!exists("password")){
+    password   <- args[2]
+  }
 }else{
   if (!exists("lake_id")){
     stop("Must set the variable 'lake_id' to a NHDHR ID.")
@@ -187,3 +191,5 @@ o2 <- odem_static(input.values = input.values,
              startdate = startdate,
              enddate = enddate,
              field.values = obs_weigh_df)
+
+print(o2$fit)
