@@ -4,12 +4,12 @@
 \alias{calc_epil_hypo_temp}
 \title{Calculate mean epilimnion and hypolimnion surface temperature,using the thermocline depth}
 \usage{
-calc_epil_hypo_temp(wtemp, td.depth, H)
+calc_epil_hypo_temp(wtemp, thermocline_depth, H)
 }
 \arguments{
 \item{wtemp}{matrix; Water temperatures (rows correspond to time, cols to depth)}
 
-\item{td.depth}{matrix; thermocline depth}
+\item{thermocline_depth}{matrix; thermocline depth}
 
 \item{H}{the depth info of the lake}
 }

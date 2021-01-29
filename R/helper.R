@@ -287,7 +287,20 @@ input <- function(wtemp, H, A){
     ))
 }
 
-
+#' run static odem
+#' @param input.values input matrix of for instance thermocline depth
+#' @param sed sediment oxygen demand
+#' @param nep epilimnion net ecosystem production
+#' @param min hypolimnion net ecosystem production
+#' @param wind time series of wind velocity
+#' @param khalf half-saturation coefficient
+#' @param elev lake elevation
+#' @param startdate start data
+#' @param enddate end date
+#' @param field.values observed oxygen data
+#' @return list of output data, fit metric, and plot
+#' @export
+#'
 odem_static<-function(input.values,
                       sed,
                       nep,
@@ -476,6 +489,22 @@ odem_static<-function(input.values,
               'plot' = plot))
 }
 
+#' run static odem
+#' @param p estimated model parameters values
+#' @param input.values input matrix of for instance thermocline depth
+#' @param nep epilimnion net ecosystem production
+#' @param min hypolimnion net ecosystem production
+#' @param sed sediment oxygen demand
+#' @param wind time series of wind velocity
+#' @param khalf half-saturation coefficient
+#' @param elev lake elevation
+#' @param verbose verbose statement
+#' @param startdate start data
+#' @param enddate end date
+#' @param field.values observed oxygen data
+#' @return list of output data, fit metric, and plot
+#' @export
+#'
 optim_odem_static <- function(p, input.values, nep = 1000, min = 100, sed = 3000,
                      wind, khalf = 500, elev = NULL, verbose,  startdate = NULL, enddate = NULL, field.values){
 

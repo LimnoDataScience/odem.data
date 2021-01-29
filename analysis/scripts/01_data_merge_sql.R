@@ -193,6 +193,8 @@ khalf <- 500 # mg/m3
 startdate = 1
 enddate = nrow(input.values)
 
+elevation = max(eg_nml$morphometry$H)
+
 # o2 <- odem_static(input.values = input.values,
 #                  nep = nep,
 #                  min = min,
@@ -221,7 +223,7 @@ modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
                       stopeval = target.iter,
                       input.values = input.values,
                       field.values = obs_weigh_df,
-                      wind = wind, elev = 450,
+                      wind = wind, elev = elevation,
                       verbose = verbose, startdate = startdate, enddate = enddate)
 
 modelopt$xmin_unscale <- lb+(ub - lb)/(10)*(modelopt$xmin)
@@ -236,7 +238,7 @@ o2 <- odem_static(input.values = input.values,
                   startdate = startdate,
                   enddate = enddate,
                   field.values = obs_weigh_df,
-                  elev = 450)
+                  elev = elevation)
 
 save(o2, file = paste0(folder_name, '/modeled_o2.RData'))
 
