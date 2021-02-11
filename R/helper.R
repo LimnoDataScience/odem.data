@@ -312,11 +312,12 @@ odem_static<-function(input.values,
                       field.values){
 
   ##initialize matrix
-  o2_data <- matrix(NA, nrow = length(input.values$thermocline_depth), ncol = 16)
+  o2_data <- matrix(NA, nrow = length(input.values$thermocline_depth), ncol = 17)
   colnames(o2_data) <- c("o2_epi","o2_hyp","o2_tot",
                          "NEP_mgm3d",
                          "SED_mgm2d",
                          "MIN_mgm3d",
+                         "khalf",
                          'fnep',
                          'fmineral',
                          'fsed',
@@ -374,6 +375,15 @@ odem_static<-function(input.values,
   k600t[which(airtemp <= 0 & input.values$temperature_total <= 4)] = 1e-5
   mean_depth = volume_tot[1]/area_epi[1];
 
+  input.values$theta_epi = theta1
+  input.values$theta_hypo = theta2
+  input.values$theta_total = theta0
+  input.values$k600_epi = k600
+  input.values$k600_total = k600t
+  # input.values$o2sat_epi = o2sat
+  # input.values$o2sat_hypo = o2sattt
+  # input.values$o2sat_total = o2satt
+
   delvol = rep(NA, nrow(o2_data))
   delvol[1] = 0;
   for(i in 2:nrow(o2_data)) {
@@ -387,6 +397,7 @@ odem_static<-function(input.values,
   o2_data$NEP_mgm3d = nep
   o2_data$SED_mgm2d = sed
   o2_data$MIN_mgm3d = min
+  o2_data$khalf = khalf
 
   first_day = 0;
 
@@ -486,7 +497,8 @@ odem_static<-function(input.values,
 
   return(list('df' = o2_data,
               'fit' = fit,
-              'plot' = plot))
+              'plot' = plot,
+              'df_kgml' = cbind(input.values, o2_data)))
 }
 
 #' run static odem

@@ -1,3 +1,4 @@
+<a href="url"><img src="inst/extdata/logo/odem_logo-01.png" align="right" height="220" width="220" ></a>
 # odem.data
 
 Data preprocessing for the Oxygen DEpletion Model (ODEM) 
@@ -12,8 +13,8 @@ remotes::install_github("jsta/odem.data")
 
 ```R
 # build odem input data for a specific lake using R
-ii <- "analysis/data/143249470_Mendota/"
-source("analysis/scripts/01_data_merge.R")
+lake_id <-  "nhdhr_34132539"
+source("analysis/scripts/01_data_merge_sql.R")
 ```
 
 ```bash
