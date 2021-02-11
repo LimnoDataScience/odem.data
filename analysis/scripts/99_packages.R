@@ -8,6 +8,7 @@ suppressMessages(library(LakeMetabolizer))
 suppressMessages(library(pracma))
 suppressMessages(library(ggplot2))
 suppressMessages(library(adagio))
+suppressMessages(library(feather))
 
 
 library(odem.data)
