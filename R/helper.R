@@ -287,191 +287,20 @@ input <- function(wtemp, H, A){
     ))
 }
 
-
-
-###
-
-#' Calculate the mass of dissolved oxgen in epil and hypolimnion(during stratified period)
-#' and the total dissovled oxygen in the lake
-#' @param wtemp matrix; Water temperatures (rows correspond to time, cols to depth)
-#' @return list of datetimes and depths
+#' run static odem
+#' @param input.values input matrix of for instance thermocline depth
+#' @param sed sediment oxygen demand
+#' @param nep epilimnion net ecosystem production
+#' @param min hypolimnion net ecosystem production
+#' @param wind time series of wind velocity
+#' @param khalf half-saturation coefficient
+#' @param elev lake elevation
+#' @param startdate start data
+#' @param enddate end date
+#' @param field.values observed oxygen data
+#' @return list of output data, fit metric, and plot
 #' @export
 #'
-calc_do<-function(input.values,fsed_stratified_epi,fsed_stratified_hypo,fsed_not_stratified,nep_stratified,nep_not_stratified,
-                  min_stratified, min_not_stratified, wind = NULL, khalf = NULL, startdate = NULL, enddate = NULL){
-
-  ##initialize matrix
-  o2_data <- matrix(NA, nrow = length(input.values$thermocline_depth), ncol = 18)
-  colnames(o2_data) <- c("o2_epil","o2_hypo","o2_total",
-                         'Fsed_total', "NEP_total", "Fatm_total", "Mineral_total",
-                         'Fsed_epi', "NEP_epi", 'Fatm_epi', 'Entrain_epi',
-                         'Fsed_hypo', 'Mineral_hypo','Entrain_hypo',
-                         'sat_o2_epil', 'sat_o2_hypo', 'sat_o2_total', 'massbal')
-  o2_data <- as.data.frame(o2_data)
-
-  init_o2sat <- o2.at.sat.base(temp=input.values$temperature_total[1],altitude = 300)*1000 # returns mg O2/L
-
-  theta<-1.08
-
-  if (is.null(khalf)){
-    khalf <- 4800.
-  }
-
-  td_not_exist <- is.na(input.values$thermocline_depth)
-
-  if (is.null(startdate)){
-    startdate = 1
-  }
-  if (is.null(enddate)){
-    enddate =  length(input.values$thermocline_depth)
-  }
-
-  o2_data$o2_total[startdate] <- init_o2sat # returns mg O2 (m3 = 1000 L)
-
-  for(day in (startdate + 1):enddate){
-
-    K600<-ifelse(is.null(wind), k.cole.base(2),k.cole.base(wind[day]))
-
-    ## not stratified period, only consider o2_total dynamics
-    if(td_not_exist[day]){
-      theta_total <- theta^(input.values$temperature_total[day-1]-20)
-
-      NEP <- (nep_not_stratified * theta_total *(o2_data[day-1,"o2_total"])/(khalf + o2_data[day-1,"o2_total"]))
-
-      MINER <- (min_not_stratified * theta_total*(o2_data[day-1,"o2_total"])/(khalf + o2_data[day-1,"o2_total"]))
-
-      kO2 <- k600.2.kGAS.base(k600=K600,temperature=input.values$temperature_total[day-1],gas='O2') # velocity value m/d?
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_total[day-1],altitude = 300)*1000 # mg O2/L -> mg/m3
-
-      Fatm <- (kO2*(o2sat - o2_data[day-1,"o2_total"])/max(H))
-
-      Fsed <- (fsed_not_stratified * (o2_data[day-1,"o2_total"])/(khalf + o2_data[day-1,"o2_total"]) * theta_total * input.values$area_surface[day-1] / input.values$volume_total[day-1])
-
-      o2_data[day,"o2_total"] <-( o2_data[day-1,"o2_total"]+ valid((Fsed + NEP + Fatm + MINER),o2_data[day-1,"o2_total"]) ) * ( input.values$volume_total[day-1]/ input.values$volume_total[day])
-
-      if (valid((Fsed + NEP + Fatm + MINER), o2_data[day-1,"o2_total"]) != (Fsed + NEP + Fatm + MINER)){
-        Fsed <- Fsed/(Fsed + NEP + Fatm + MINER) * o2_data[day-1,"o2_total"]
-        NEP <- NEP/(Fsed + NEP + Fatm + MINER) * o2_data[day-1,"o2_total"]
-        Fatm <- Fatm/(Fsed + NEP + Fatm + MINER)* o2_data[day-1,"o2_total"]
-        MINER <- MINER/(Fsed + NEP + Fatm + MINER) * o2_data[day-1,"o2_total"]
-      }
-
-      o2_data[day,"Fsed_total"] <- Fsed
-      o2_data[day,"NEP_total"] <- NEP
-      o2_data[day,"Fatm_total"] <- Fatm
-      o2_data[day,"Mineral_total"] <- MINER
-      o2_data[day,"sat_o2_total"] <- (100. * o2_data[day,"o2_total"] )/ o2sat
-
-    }
-    # the day it turns to stratified, need to reassign the o2 to hypo and epil
-    else if(is.na(input.values$thermocline_depth[day-1])){
-      # o2_data[day,"o2_epil"] <- (o2_data[day-1,"o2_total"]*input.values$volume_epi[day])/input.values$volume_total[day]
-      # o2_data[day,"o2_hypo"] <- (o2_data[day-1,"o2_total"]*input.values$volume_hypo[day])/input.values$volume_total[day]
-      # o2_data[day,"o2_total"] <- (o2_data[day,"o2_hypo"]* input.values$volume_hypo[day] + o2_data[day,"o2_epil"] * input.values$volume_epi[day])/input.values$volume_total[day]
-      o2_data[day,"o2_epil"] <- o2_data[day-1,"o2_total"]#((o2_data[day-1,"o2_total"]*input.values$volume_epi[day])/input.values$volume_total[day]) #/ input.values$volume_epi[day] #/input.values$temperature_total[day]*input.values$volume_epi[day]
-      o2_data[day,"o2_hypo"] <- o2_data[day-1,"o2_total"]#((o2_data[day-1,"o2_total"]*input.values$volume_hypo[day])/input.values$volume_total[day])  #/ input.values$volume_hypo[day] #/input.values$temperature_total[day]*input.values$volume_hypo[day]
-      o2_data[day,"o2_total"]<- (o2_data[day,"o2_epil"]+o2_data[day,"o2_hypo"]) /2 #/ input.values$volume_total[day]
-
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_epi[day],altitude = 300)*1000
-      o2_data[day,"sat_o2_epil"] <- (100. * o2_data[day,"o2_epil"])/ o2sat
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_hypo[day],altitude = 300)*1000
-      o2_data[day,"sat_o2_hypo"] <- (100. * o2_data[day,"o2_hypo"]  )/ o2sat
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_total[day],altitude = 300)*1000
-      o2_data[day,"sat_o2_total"] <- (100. * o2_data[day,"o2_total"] )/ o2sat
-    }else{
-      theta_epil <- theta^(input.values$temperature_epi[day-1]-20)
-      theta_hypo <-  theta^(input.values$temperature_hypo[day-1]-20)
-
-      NEP_epil <- (nep_stratified * theta_epil *(o2_data[day-1,"o2_epil"])/(khalf + o2_data[day-1,"o2_epil"]))
-
-      kO2_epil <- k600.2.kGAS.base(k600=K600,temperature=input.values$temperature_epi[day-1],gas='O2')
-      o2sat_epil<-o2.at.sat.base(temp=input.values$temperature_epi[day-1],altitude = 300)*1000
-
-      Fatm_epil <- (kO2_epil*(o2sat_epil-o2_data[day-1,"o2_epil"] )/input.values$thermocline_depth[day-1])
-
-
-      volumechange_epi = input.values$volume_epi[day]-input.values$volume_epi[day-1]
-      volumechange_epi_proportion =  volumechange_epi/input.values$volume_epi[day-1]
-      if (volumechange_epi_proportion >= 0){
-        x_do <- o2_data[day - 1,"o2_hypo"] #( o2_data[day - 1,"o2_hypo"] * abs(volumechange_epi)) / input.values$volume_hypo[day-1]
-      } else {
-        x_do <- o2_data[day - 1,"o2_epil"] #( o2_data[day - 1,"o2_epil"] * abs(volumechange_epi)) / input.values$volume_epi[day-1]
-      }
-
-      Fepi <-  (volumechange_epi_proportion* x_do)
-
-      Fsed_epi <- (fsed_stratified_epi * (o2_data[day-1,"o2_epil"])/(khalf + o2_data[day-1,"o2_epil"]) * theta_epil * input.values$area_surface[day-1] /input.values$volume_epi[day-1])
-
-      o2_data[day,"o2_epil"] <- (o2_data[day-1,"o2_epil"] + valid((NEP_epil+Fatm_epil + Fepi + Fsed_epi) , o2_data[day-1,"o2_epil"]) ) * (input.values$volume_epi[day-1]/input.values$volume_epi[day])
-
-      if (valid((NEP_epil+Fatm_epil + Fepi + Fsed_epi), o2_data[day-1,"o2_epil"]) != (NEP_epil+Fatm_epil + Fepi + Fsed_epi)){
-        Fsed_epi <- Fsed_epi/(NEP_epil+Fatm_epil + Fepi + Fsed_epi) * o2_data[day-1,"o2_epil"]
-        NEP_epil <- NEP_epil/(NEP_epil+Fatm_epil + Fepi + Fsed_epi) * o2_data[day-1,"o2_epil"]
-        Fatm_epil <- Fatm_epil/(NEP_epil+Fatm_epil + Fepi + Fsed_epi) * o2_data[day-1,"o2_epil"]
-        Fepi <- Fepi/(NEP_epil+Fatm_epil + Fepi + Fsed_epi) * o2_data[day-1,"o2_epil"]
-      }
-
-      o2_data[day,"Fsed_epi"] <- Fsed_epi
-      o2_data[day,"NEP_epi"] <- NEP_epil
-      o2_data[day,"Fatm_epi"] <- Fatm_epil
-      o2_data[day,"Entrain_epi"] <- Fepi
-
-      volumechange_hypo = input.values$volume_hypo[day]-input.values$volume_hypo[day-1]  #in m^3
-      volumechange_hypo_proportion =  volumechange_hypo/input.values$volume_hypo[day-1]
-
-      if (volumechange_hypo_proportion >= 0){
-        x_do <-  o2_data[day - 1,"o2_epil"] #( o2_data[day - 1,"o2_epil"] * abs(volumechange_hypo)) / input.values$volume_epi[day-1]
-      } else {
-        x_do <- o2_data[day - 1,"o2_hypo"] #( o2_data[day - 1,"o2_hypo"] * abs(volumechange_hypo)) / input.values$volume_hypo[day-1]
-      }
-
-      Fhypo <- (volumechange_hypo_proportion* x_do )
-
-      MINER_hypo <- (min_stratified * theta_hypo  * (o2_data[day-1,"o2_hypo"])/(khalf + o2_data[day-1,"o2_hypo"]))
-
-
-      Fsed_hypo <- (fsed_stratified_hypo * (o2_data[day-1,"o2_hypo"])/(khalf + o2_data[day-1,"o2_hypo"]) * theta_hypo * input.values$ area_thermocline[day-1] / input.values$volume_hypo[day-1])
-
-
-      o2_data[day,"o2_hypo"] <- (o2_data[day-1,"o2_hypo"] + valid((Fhypo + Fsed_hypo + MINER_hypo), o2_data[day-1,"o2_hypo"]) ) * (input.values$volume_hypo[day-1]/input.values$volume_hypo[day])
-
-      if (valid((Fhypo + Fsed_hypo + MINER_hypo), o2_data[day-1,"o2_hypo"]) != (Fhypo + Fsed_hypo + MINER_hypo)){
-        Fsed_hypo <- Fsed_hypo/(Fhypo + Fsed_hypo + MINER_hypo) * o2_data[day-1,"o2_hypo"]
-        Fhypo <- Fhypo/(Fhypo + Fsed_hypo + MINER_hypo) * o2_data[day-1,"o2_hypo"]
-        MINER_hypo <- MINER_hypo/(Fhypo + Fsed_hypo + MINER_hypo) * o2_data[day-1,"o2_hypo"]
-      }
-
-
-      o2_data[day,"o2_total"] <- (o2_data[day,"o2_hypo"]* input.values$volume_hypo[day] + o2_data[day,"o2_epil"] * input.values$volume_epi[day])/input.values$volume_total[day]
-      o2_data[day,"Fsed_hypo"] <- Fsed_hypo
-      o2_data[day,"Mineral_hypo"] <- MINER_hypo
-      o2_data[day,"Entrain_hypo"] <- Fhypo
-
-
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_epi[day],altitude = 300)*1000
-      o2_data[day,"sat_o2_epil"] <- (100. * o2_data[day,"o2_epil"] )/ o2sat
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_hypo[day],altitude = 300)*1000
-      o2_data[day,"sat_o2_hypo"] <- (100. * o2_data[day,"o2_hypo"]  )/ o2sat
-      o2sat<-o2.at.sat.base(temp=input.values$temperature_total[day],altitude = 300)*1000
-      o2_data[day,"sat_o2_total"] <- (100. * o2_data[day,"o2_total"] )/ o2sat
-
-      # mass balance
-      mass_thr <- sum(c(o2_data$o2_epil[day-1] * input.values$volume_epi[day-1], o2_data$o2_hypo[day-1] * input.values$volume_hypo[day-1])) +
-        ( (NEP_epil + Fatm_epil + Fepi + Fsed_epi) * (input.values$volume_epi[day-1]) + (MINER_hypo + Fhypo + Fsed_hypo ) * (input.values$volume_hypo[day-1]))
-      mass_balance <-  sum(c(o2_data$o2_epil[day]*input.values$volume_epi[day], o2_data$o2_hypo[day]* input.values$volume_hypo[day])) - mass_thr
-      o2_data[day,"massbal"] <- mass_balance
-      # print(mass_balance)
-    }
-    if (is.na(o2_data[day, "o2_total"])) {
-      break
-      print('RED ALERT!')
-    }
-  }
-
-  return (o2_data)
-}
-
-
 odem_static<-function(input.values,
                       sed,
                       nep,
@@ -660,6 +489,22 @@ odem_static<-function(input.values,
               'plot' = plot))
 }
 
+#' run static odem
+#' @param p estimated model parameters values
+#' @param input.values input matrix of for instance thermocline depth
+#' @param nep epilimnion net ecosystem production
+#' @param min hypolimnion net ecosystem production
+#' @param sed sediment oxygen demand
+#' @param wind time series of wind velocity
+#' @param khalf half-saturation coefficient
+#' @param elev lake elevation
+#' @param verbose verbose statement
+#' @param startdate start data
+#' @param enddate end date
+#' @param field.values observed oxygen data
+#' @return list of output data, fit metric, and plot
+#' @export
+#'
 optim_odem_static <- function(p, input.values, nep = 1000, min = 100, sed = 3000,
                      wind, khalf = 500, elev = NULL, verbose,  startdate = NULL, enddate = NULL, field.values){
 
@@ -678,113 +523,6 @@ optim_odem_static <- function(p, input.values, nep = 1000, min = 100, sed = 3000
 }
 
 
-#' check whether the flux is valid and return a valid flux
-#' @param flux to be checked
-#' @param pool cuurent existing o2 in the lake
-#' @return a valid flux
-#' @export
-#'
-valid<-function(flux,pool){
-  if(abs(flux)>abs(pool)){
-    if(flux<0){
-      return (-pool)
-    }else{
-      return (flux)
-    }
-
-  }else{
-    return (flux)
-  }
-}
-
-#' preprocesses observed data and area-weighs them
-#' @param obs observed data
-#' @param pool input matrix of for instance thermocline depth
-#' @param H depths
-#' @param A areas
-#' @return matched and weighted-averaged data
-#' @export
-#'
-preprocess_obs <- function(obs, input.values, H, A){
-  deps <- seq(round(max(H),4), round(min(H),4), by = -0.5)
-
-  if (max(H) > max(deps)){
-    deps <- c(max(H), deps)
-  }
-  if (min(H) < min(deps)){
-    deps <- c(deps, min(H))
-  }
-
-  areas <- approx(round(H,4), round(A,4), round(deps,4))$y
-
-  apprObs <- matrix(NA, nrow= length(deps), ncol =length(unique(zoo::as.Date(obs$ActivityStartDate))))
-  ts.apprObs <- matrix(NA, nrow= 3, ncol =length(unique(zoo::as.Date(obs$ActivityStartDate))))
-  idx <- c()
-  for (jj in unique(zoo::as.Date(obs$ActivityStartDate))){
-
-    idy =  (match(zoo::as.Date(obs$ActivityStartDate),zoo::as.Date(jj)))
-    idy <- which(!is.na(idy))
-    dat <- obs[idy,]
-
-
-    if (sd(dat$ActivityDepthHeightMeasure.MeasureValue) == 0 | length(dat$ActivityDepthHeightMeasure.MeasureValue) <= 1 |
-        length(na.omit( round(dat$ResultMeasureValue,2))) <= 1){
-      next} else {
-
-        if (max(deps) > max(round(dat$ActivityDepthHeightMeasure.MeasureValue,2))) {
-          dat <- rbind(dat, data.frame('ActivityStartDate' = zoo::as.Date(jj),
-                                       'ActivityDepthHeightMeasure.MeasureValue' = max(deps),
-                                       'ResultMeasureValue' = dat$ResultMeasureValue[nrow(dat)]))
-        }
-
-        if (any(is.na(approx(round(dat$ActivityDepthHeightMeasure.MeasureValue,2), round(dat$ResultMeasureValue,2),
-                             deps)$y))){
-          intvec <- (approx(round(dat$ActivityDepthHeightMeasure.MeasureValue,2), round(dat$ResultMeasureValue,2),
-                            deps)$y)
-          intvec[ which(is.na(intvec))] <- intvec[( which(is.na(intvec)))+1]
-        } else {
-          intvec <- approx(round(dat$ActivityDepthHeightMeasure.MeasureValue,2), round(dat$ResultMeasureValue,2),
-                           deps)$y
-        }
-        apprObs[,match(jj, unique(zoo::as.Date(obs$ActivityStartDate)))] <-intvec
-
-        if (zoo::as.Date(jj) < min(zoo::as.Date(input.values$datetime)) | zoo::as.Date(jj) > max(zoo::as.Date(input.values$datetime))){
-          next
-        } else {
-          idx <- append(idx,  match(zoo::as.Date(jj), zoo::as.Date(input.values$datetime)))
-          idz <-  which(zoo::as.Date(jj) == zoo::as.Date(input.values$datetime))
-          if (is.na(input.values$thermocline_depth[abs(idz)])){
-            dz.areas <- (1*areas)/sum(areas, na.rm= TRUE)#(areas - min(areas)) / (max(areas) - min(areas))
-            ts.apprObs[1, match(zoo::as.Date(jj), unique(zoo::as.Date(obs$ActivityStartDate)))] <- weighted.mean(apprObs[,match(zoo::as.Date(jj), unique(as.Date(obs$ActivityStartDate)))],
-                                                                                                                 dz.areas, na.rm = TRUE)
-          } else{
-            z.td <- which(abs(input.values$thermocline_depth[abs(idz)] - deps) == (min(abs(input.values$thermocline_depth[abs(idz)] - deps))[1]))
-            dz.hypo <- (1*areas[1:z.td])/sum(areas[1:z.td])
-            dz.epi <- (1*areas[(z.td+1):length(areas)])/sum(areas[(z.td+1):length(areas)])
-
-            ts.apprObs[2, match(jj, unique(zoo::as.Date(obs$ActivityStartDate)))] <- weighted.mean(apprObs[(z.td+1):length(areas),match(zoo::as.Date(jj), unique(as.Date(obs$ActivityStartDate)))],
-                                                                                                   dz.epi, na.rm = TRUE)
-
-            ts.apprObs[3, match(jj, unique(zoo::as.Date(obs$ActivityStartDate)))] <- weighted.mean(apprObs[1:z.td,match(jj, unique(zoo::as.Date(obs$ActivityStartDate)))],
-                                                                                                   dz.hypo, na.rm = TRUE)
-          }
-        }
-      }
-  }
-  check.na <- c()
-  for (p in 1:ncol(ts.apprObs)){
-    if (all(is.na(ts.apprObs[,p]))){
-      check.na <- append(check.na, p)
-    }
-  }
-  # idx <- match(unique(as.Date(obs$ActivityStartDate)), as.Date(input.values$datetime))
-  if (is.null(check.na)){
-    return(rbind(idx, ts.apprObs))
-  } else {
-    return(rbind(idx, ts.apprObs[,-(check.na)]))
-  }
-
-}
 
 #' preprocesses observed data and area-weighs them w/o interpolation
 #' @param obs observed data

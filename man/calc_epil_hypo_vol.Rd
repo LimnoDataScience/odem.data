@@ -4,16 +4,16 @@
 \alias{calc_epil_hypo_vol}
 \title{Calculate water epilimnion and hypolimnine volume,using the thermocline depth}
 \usage{
-calc_epil_hypo_vol(H, A, td.depth, vol_total)
+calc_epil_hypo_vol(H, A, thermocline_depth, volume_total)
 }
 \arguments{
 \item{H}{vector; the depth info of the lake}
 
 \item{A}{vector; the area info of the lake for each depth}
 
-\item{td.depth}{matrix; thermocline depth}
+\item{thermocline_depth}{matrix; thermocline depth}
 
-\item{vol_total}{number;the total volume of the lake}
+\item{volume_total}{number;the total volume of the lake}
 }
 \value{
 matrix of epil and hypo volume
