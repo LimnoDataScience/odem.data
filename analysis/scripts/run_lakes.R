@@ -36,7 +36,6 @@ if (length(idx) == 0){
   all.nml_missing <- all.nml_short2[idy[-c(idx)]]
 }
 
-
 system.time(
   results <- mclapply(all.nml_missing, run_all, mc.cores = numCores)
 )

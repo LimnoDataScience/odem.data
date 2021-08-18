@@ -309,7 +309,7 @@ odem_static<-function(input.values,
                       khalf = 500,
                       elev = 450,
                       startdate = NULL, enddate = NULL,
-                      field.values){
+                      field.values, obs_weigh_df){
 
   ##initialize matrix
   o2_data <- matrix(NA, nrow = length(input.values$thermocline_depth), ncol = 17)
@@ -360,6 +360,14 @@ odem_static<-function(input.values,
   strat_pos = strat.pos
   len_strat_pos = length(strat.pos)
   d_strat_pos = length(strat.pos)
+
+  ### Paul's code to fix k>mixed layer depth
+  Z_epi = volume_epi / area_epi
+  Z_tot = volume_tot / area_epi
+  k600 = pmin(0.67*Z_epi,k600)
+  k600t = pmin(0.67*Z_tot,k600t)
+  # print(k600)
+  # print(k600t)
 
   airtemp = input.values$airtemp
   delvol_epi = c(diff(input.values$volume_epi),0)/c(input.values$volume_epi)
@@ -495,9 +503,20 @@ odem_static<-function(input.values,
           axis.text.y= element_text(size = 20), text = element_text(size = 20), legend.title = element_blank(), strip.text =element_text(size = 20),
           legend.position = 'bottom'); plot
 
+  df.scatter = data.frame('obs' = c(obs[,1], obs[,2]), 'sim' = c(mod[,1], mod[,2]))
+  scatterplot <- ggplot(df.scatter) +
+    geom_point(aes(obs, sim), size = 2) +
+    geom_abline(intercept = 0, slope = 1)+
+    ylab(expression("Sim. [g DO"*~m^{-3}*"]")) +
+    xlab(expression("Obs. [g DO"*~m^{-3}*"]")) +  theme_minimal()+
+    theme(legend.text = element_text(size = 11), axis.text.x= element_text(size = 20), plot.title = element_text(size = 20),
+          axis.text.y= element_text(size = 20), text = element_text(size = 20), legend.title = element_blank(), strip.text =element_text(size = 20),
+          legend.position = 'bottom'); scatterplot
+
   return(list('df' = o2_data,
               'fit' = fit,
               'plot' = plot,
+              'scatterplot' = scatterplot,
               'df_kgml' = cbind(input.values, o2_data)))
 }
 
@@ -518,7 +537,7 @@ odem_static<-function(input.values,
 #' @export
 #'
 optim_odem_static <- function(p, input.values, nep = 1000, min = 100, sed = 3000,
-                     wind, khalf = 500, elev = NULL, verbose,  startdate = NULL, enddate = NULL, field.values){
+                     wind, khalf = 500, elev = NULL, verbose,  startdate = NULL, enddate = NULL, field.values, obs_weigh_df){
 
   p <- lb+(ub - lb)/(10)*(p)
 
@@ -529,7 +548,7 @@ optim_odem_static <- function(p, input.values, nep = 1000, min = 100, sed = 3000
                    wind = wind,
                    khalf = p[4],
                startdate = startdate, enddate = enddate,
-               field.values = obs_weigh_df, elev = elev)
+               field.values = obs_weigh_df, elev = elev, obs_weigh_df = obs_weigh_df)
   print(o2$fit)
   return(o2$fit)
 }

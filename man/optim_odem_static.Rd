@@ -16,7 +16,8 @@ optim_odem_static(
   verbose,
   startdate = NULL,
   enddate = NULL,
-  field.values
+  field.values,
+  obs_weigh_df
 )
 }
 \arguments{
