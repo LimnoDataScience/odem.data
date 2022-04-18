@@ -126,6 +126,77 @@ ggplot(info.df) +
   ggtitle(paste0('Mean RMSE: ', round(mean(info.df$fit_tall),1), ' g/m3')) +
   theme_bw()
 
+lstm <- read.csv('lstm/all_observations_results.csv')
+lstm.sites <- read.csv('lstm/per_site_results.csv')
+
+idx <- match(lstm.sites$site_id, info.df$lake_id)
+lstm.sites$depth = info.df$depth[idx]
+lstm.sites$area = info.df$area[idx]
+lstm.sites$n_obs = info.df$n_obs[idx]
+
+g1=ggplot(lstm.sites) +
+  geom_line(aes(n_obs, lstm_model_rmse,  col = 'LSTM')) +
+  geom_point(aes(n_obs, lstm_model_rmse,  col = 'LSTM')) +
+  geom_line(aes(n_obs, o2_model_rmse,  col = 'PB-metabolism')) +
+  geom_point(aes(n_obs, o2_model_rmse,  col = 'PB-metabolism')) +
+  # scale_color_gradient(low = "blue", high = "red") +
+  ylab("RMSE (g/m3)") + xlab("Obs") +
+  ylim(0,20)+
+  ggtitle(paste0('Median Obs: ', ceiling(mean(lstm.sites$n_obs)))) +
+  theme_bw()
+
+g2=ggplot(lstm.sites) +
+  geom_line(aes(log10(area/1e6), lstm_model_rmse,  col = 'LSTM')) +
+  geom_point(aes(log10(area/1e6), lstm_model_rmse,  col = 'LSTM')) +
+  geom_line(aes(log10(area/1e6), o2_model_rmse,  col = 'PB-metabolism')) +
+  geom_point(aes(log10(area/1e6), o2_model_rmse,  col = 'PB-metabolism')) +
+  # scale_color_gradient(low = "blue", high = "red") +
+  ylab("RMSE (g/m3)") + xlab("log10 Area (km2)") +
+  ylim(0,20)+
+  ggtitle(paste0('Median Area: ', floor(mean(lstm.sites$area)/1e6), ' km2')) +
+  theme_bw()
+
+g3=ggplot(lstm.sites) +
+  geom_line(aes(depth, lstm_model_rmse,  col = 'LSTM')) +
+  geom_point(aes(depth, lstm_model_rmse,  col = 'LSTM')) +
+  geom_line(aes(depth, o2_model_rmse,  col = 'PB-metabolism')) +
+  geom_point(aes(depth, o2_model_rmse,  col = 'PB-metabolism')) +
+  # scale_color_gradient(low = "blue", high = "red") +
+  ylab("RMSE (g/m3)") + xlab("Depth (m)") +
+  ylim(0,20)+
+  ggtitle(paste0('Median Depth: ', round(mean(lstm.sites$depth),1), ' m')) +
+  theme_bw()
+
+
+# ggplot(lstm.sites ) +
+#   geom_density(aes(o2_model_rmse, fill = 'PB-metabolism'), alpha = 0.1) +
+#   geom_density(aes(lstm_model_rmse,  fill = 'LSTM'), alpha = 0.1) +
+#   ggtitle('Total average DO depletion') +
+#   xlim(0,10)+
+#   xlab('average Jz (Livingstone) against average SED+NEP (g/m3/d)') +
+# # geom_point(aes(Jv, NEP, col = as.factor(year))) +
+# # ylim(min(c(coeff$Jv, coeff$NEP), na.rm = T),max(c(coeff$Jv, coeff$NEP), na.rm = T)) +
+# # xlim(min(c(coeff$Jv, coeff$NEP), na.rm = T),max(c(coeff$Jv, coeff$NEP), na.rm = T)) +
+# theme_bw()
+
+df <- data.frame('RMSE' = append(lstm.sites$o2_model_rmse, lstm.sites$lstm_model_rmse),
+                 'Model' = append(rep('PB-metabolism', length(lstm.sites$o2_model_rmse)),
+                                 rep('LSTM', length(lstm.sites$lstm_model_rmse))))
+g4=ggplot(df) +
+  geom_boxplot(aes(Model, RMSE,  fill = Model))  +
+  ggtitle(paste0('Median RMSE ', round(median(lstm.sites$o2_model_rmse),2),' and ', round(median(lstm.sites$lstm_model_rmse),2), ' g/m3 for PB and LSTM')) +
+  ylim(0,7.5)+ ylab('RMSE (g/m3)')+
+  theme_bw()
+
+
+g <- ((g1 + g2) / (g3 + g4) )+  plot_layout(guides = 'collect') + plot_annotation(tag_levels = 'A', title = paste0('Simulated lakes: ',nrow(lstm.sites))); g
+ggsave('analysis/figures/comparison_LSTM.png', g)
+
+
+
+print(mean(lstm.sites$o2_model_rmse))
+print(mean(lstm.sites$lstm_model_rmse))
+
 library(tidyverse)
 library(mapview)
 library(lattice)

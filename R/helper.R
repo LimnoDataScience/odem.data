@@ -632,3 +632,296 @@ weigh_obs <- function(obs, input.values, H, A){
   return(list(data_long, weight_obs))
 }
 
+
+#' run static odem
+#' @param input.values input matrix of for instance thermocline depth
+#' @param sed sediment oxygen demand
+#' @param nep epilimnion net ecosystem production
+#' @param min hypolimnion net ecosystem production
+#' @param wind time series of wind velocity
+#' @param khalf half-saturation coefficient
+#' @param elev lake elevation
+#' @param startdate start data
+#' @param enddate end date
+#' @param field.values observed oxygen data
+#' @return list of output data, fit metric, and plot
+#' @export
+#'
+odem_static_v2 <-function(input.values,
+                      sed,
+                      nep,
+                      min,
+                      wind = NULL,
+                      khalf = 500,
+                      elev = 450,
+                      startdate = NULL, enddate = NULL,
+                      field.values, obs_weigh_df){
+
+  ##initialize matrix
+  o2_data <- matrix(NA, nrow = length(input.values$thermocline_depth), ncol = 18)
+  colnames(o2_data) <- c("o2_epi","o2_hyp","o2_tot",
+                         "NEP_mgm3d",
+                         "SED_mgm2d",
+                         "MIN_mgm3d",
+                         "khalf",
+                         'fnep',
+                         'fmineral',
+                         'fsed',
+                         'fatm',
+                         'fdiff',
+                         'fentr_epi',
+                         'fentr_hyp',
+                         'sat_o2_epi', 'sat_o2_hyp', 'sat_o2_tot', 'massbal')
+  o2_data <- as.data.frame(o2_data)
+  ##when is the lake mixed/stratified?
+  input.values$strat <- ifelse(is.na(input.values$thermocline_depth),0,1)
+  strat.pos <- c()
+  for (ii in 1:length(input.values$strat)){
+    if (input.values$strat[ii] == 1 && input.values$strat[ii-1] == 0){
+      strat.pos <- append(strat.pos, ii)
+    }
+  }
+
+  buoy.freq <- ((calc_dens(input.values$temperature_hypo) - calc_dens(input.values$temperature_epi))/(input.values$lower_meta - input.values$upper_meta)* 9.81/998.2)
+  buoy.freq[which(buoy.freq<7e-5)] = 7e-5
+  kz = 0.00706 * (mean(input.values$area_surface))^(0.56) * buoy.freq^(-0.43)
+  kz[which(is.na(kz))] = 1e-10
+
+  theta0 = 1.08^(input.values$temperature_total - 20)
+  theta1 = 1.08^(input.values$temperature_epi - 20)
+  theta2 = 1.08^(input.values$temperature_hypo - 20)
+  k600t = k600.2.kGAS.base(k.vachon.base(wnd = input.values$wind,
+                                         lake.area = mean(input.values$area_surface)),temperature = input.values$temperature_total, gas = "O2")
+  o2satt = o2.at.sat.base(temp = input.values$temperature_total, altitude = elev) * 1000
+  k600 = k600.2.kGAS.base(k.vachon.base(wnd = input.values$wind,
+                                        lake.area = mean(input.values$area_surface)),temperature = input.values$temperature_epi, gas = "O2")
+  o2sat = o2.at.sat.base(temp = input.values$temperature_epi, altitude = elev) * 1000
+  o2sattt = o2.at.sat.base(temp = input.values$temperature_hypo, altitude = elev) * 1000
+  volume_epi = input.values$volume_epi
+  volume_tot = input.values$volume_total
+  area_epi = input.values$area_surface
+  volume_hyp = input.values$volume_hypo
+  # area_hyp = input.values$area_thermocline
+  max.d = input.values$max.d
+  tddepth = input.values$thermocline_depth
+  area_hyp = approx(c(0, mean(max.d)),c(mean(area_epi),0),tddepth)$y
+  wtr_epi = input.values$temperature_epi
+  wtr_hyp = input.values$temperature_hypo
+  wtr_tot = input.values$temperature_total
+  khalf = khalf # New, was 3000
+  DO_epi_init = 15 * 1000 #simdata$DO_obs[1],
+  DO_hyp_init = 15 * 1000
+  DO_tot_init = 15 * 1000
+  stratified = input.values$strat
+  strat_pos = strat.pos
+  len_strat_pos = length(strat.pos)
+  d_strat_pos = length(strat.pos)
+
+  ### Paul's code to fix k>mixed layer depth
+  Z_epi = volume_epi / area_epi
+  Z_tot = volume_tot / area_epi
+  k600 = pmin(0.67*Z_epi,k600)
+  k600t = pmin(0.67*Z_tot,k600t)
+
+  diff_temp = input.values$temperature_hypo
+  diff_temp[is.na(diff_temp)] = input.values$temperature_total[is.na(diff_temp)]
+  diff_mol = 10^(-4.41+773.8/(diff_temp+273.15)-(506.4/(diff_temp+273.15))^2)*86400/10000
+  z_dbl = 1/1000
+  diff_eddy = kz
+
+  # print(k600)
+  # print(k600t)
+
+  airtemp = input.values$airtemp
+  delvol_epi = c(diff(input.values$volume_epi),0)/c(input.values$volume_epi)
+  delvol_hyp =  c(diff(input.values$volume_hypo),0)/c(input.values$volume_hypo)
+  delvol_epi[strat.pos] = 0
+  delvol_hyp[strat.pos] = 0
+  delvol_epi[is.na(delvol_epi)] = 0
+  delvol_hyp[is.na(delvol_hyp)] = 0
+  # simdata$DO_obs_epi = simdata$DO_obs_epi * 1.5
+  DO_obs_epi = field.values[3,]
+  DO_obs_hyp = field.values[4,]
+  DO_obs_tot = field.values[2,]
+  k600t[which(airtemp <= 0 & input.values$temperature_total <= 4)] = 1e-5
+  mean_depth = volume_tot[1]/area_epi[1];
+
+  input.values$theta_epi = theta1
+  input.values$theta_hypo = theta2
+  input.values$theta_total = theta0
+  input.values$k600_epi = k600
+  input.values$k600_total = k600t
+  # input.values$o2sat_epi = o2sat
+  # input.values$o2sat_hypo = o2sattt
+  # input.values$o2sat_total = o2satt
+
+  delvol = rep(NA, nrow(o2_data))
+  delvol[1] = 0;
+  for(i in 2:nrow(o2_data)) {
+    delvol[i] = volume_epi[i]-volume_epi[i-1];
+  }
+
+
+  o2_data$o2_epi[1] = DO_epi_init;
+  o2_data$o2_hyp[1] = DO_hyp_init;
+  o2_data$o2_tot[1] = DO_tot_init;
+  o2_data$NEP_mgm3d = nep
+  o2_data$SED_mgm2d = sed
+  o2_data$MIN_mgm3d = min
+  o2_data$khalf = khalf
+
+  first_day = 0;
+
+  for(i in 2:nrow(o2_data)) {
+    first_day = 0; #determine if it is first of stratification change
+    for (k in 1:len_strat_pos){
+      if (strat_pos[k] == i){
+        first_day = 1;
+      }
+    }
+    if (stratified[i] == 0) {
+      o2_data$fnep[i] =   o2_data$NEP_mgm3d[i] * theta0[i-1];
+      o2_data$fmineral[i] = o2_data$MIN_mgm3d[i] * theta0[i-1];
+      # o2_data$fsed[i] = o2_data$SED_mgm2d[i] *  (max((o2_data$o2_tot[i-1]),1e-06)/(khalf + max((o2_data$o2_tot[i-1]),1e-06))) * theta0[i-1] / mean_depth; # THETA BUG
+      o2_data$fsed[i] = (o2_data$SED_mgm2d[i] * theta0[i-1]) / mean_depth +
+        (max((o2_data$o2_tot[i-1]),1e-06) * diff_mol[i-1]/(0.001 * max.d[i])) * theta0[i-1]; # NEW 0+1 REACTION SCHEME
+      o2_data$fdiff[i] = 1e-09 # NEW EDDY DIFFUSIVITY FLUX
+      o2_data$fatm[i] =  k600t[i-1]  *  (o2satt[i-1] - o2_data$o2_tot[i-1]) / mean_depth; # EPI O2 BUG
+      o2_data$o2_tot[i] =  max(o2_data$o2_tot[i-1] + o2_data$fnep[i] -
+        o2_data$fsed[i] + o2_data$fatm[i] + o2_data$fmineral[i],0);
+      o2_data$o2_hyp[i] = o2_data$o2_tot[i] ;
+      o2_data$o2_epi[i] = o2_data$o2_tot[i] ;
+    } else if (stratified[i] == 1){
+
+      if(first_day != 1){
+        if(delvol[i]>0) {
+          x_do1 = o2_data$o2_hyp[i-1];
+        } else {
+          x_do1 = o2_data$o2_epi[i-1];
+        }
+      }
+
+      if(first_day == 1){
+        o2_data$fnep[i] =  o2_data$fnep[i-1];
+        o2_data$fatm[i]  = o2_data$fatm[i-1];
+        o2_data$o2_epi[i] =  (o2_data$o2_epi[i-1]);
+        o2_data$fdiff[i] = o2_data$fdiff[i-1]
+      } else {
+        o2_data$fnep[i] =  o2_data$NEP_mgm3d[i] *theta1[i-1];
+        o2_data$fatm[i] = k600[i-1] *  (o2sat[i-1] - o2_data$o2_epi[i-1]) / tddepth[i-1]; #if DO is negative...use 0.1 instead of inferred DO
+        o2_data$fdiff[i] = diff_eddy[i-1]/area_hyp[i-1] * (o2_data$o2_hyp[i-1] - o2_data$o2_epi[i-1])
+        o2_data$fentr_epi[i] = (delvol[i]*x_do1) /volume_epi[i]
+          o2_data$o2_epi[i] =  max(((o2_data$o2_epi[i-1] + o2_data$fnep[i] + o2_data$fatm[i] + o2_data$fdiff[i])*volume_epi[i-1] + (delvol[i]*x_do1))/volume_epi[i],0);
+      }
+      if(first_day == 1) {
+        o2_data$fsed[i] = o2_data$fsed[i-1];
+        o2_data$fmineral[i] = o2_data$fmineral[i-1];
+        o2_data$o2_hyp[i] = o2_data$o2_hyp[i-1];
+      } else {
+        # mineral[i] = MIN[i_Param[i]] * (fmax((DO_hyp[i-1]*tau+mu),1e-06)/(khalf + fmax((DO_hyp[i-1]*tau+mu),1e-06))) * theta2[i-1];
+        o2_data$fmineral[i] = o2_data$MIN_mgm3d[i] * theta2[i-1];
+        # o2_data$fsed[i] = (o2_data$SED_mgm2d[i] *  (max((o2_data$o2_hyp[i-1]),1e-06)/(khalf + max((o2_data$o2_hyp[i-1]),1e-06))) * theta2[i-1]) / max((volume_hyp[i-1]/area_hyp[i-1]),1);
+        o2_data$fsed[i] = (o2_data$SED_mgm2d[i] * theta2[i-1]) / max((volume_hyp[i-1]/area_hyp[i-1]),1) +
+          (max((o2_data$o2_hyp[i-1]),1e-06) * diff_mol[i-1]/(0.001 * max((volume_hyp[i-1]/area_hyp[i-1]),1) )) * theta2[i-1]; # NEW 0+1 REACTION SCHEME
+
+        o2_data$fentr_hyp[i] = -(delvol[i]*x_do1) /volume_hyp[i]
+        o2_data$o2_hyp[i] =  max(((o2_data$o2_hyp[i-1] - o2_data$fsed[i] + o2_data$fmineral[i]  - o2_data$fdiff[i])*volume_hyp[i-1] - (delvol[i]*x_do1))/volume_hyp[i],0);
+      }
+      o2_data$o2_tot[i] = (o2_data$o2_epi[i] *volume_epi[i] + o2_data$o2_hyp[i] *volume_hyp[i])/volume_tot[i];
+    }
+  }
+
+  o2_data$sat_o2_epi <- (100. * o2_data$o2_epi )/ o2sat
+  o2_data$sat_o2_hyp <- (100. * o2_data$o2_hyp )/ o2sattt
+  o2_data$sat_o2_tot <- (100. * o2_data$o2_tot )/ o2satt
+
+  # mass balance
+  o2_data$massbal <-( o2_data$o2_epi * volume_epi + o2_data$o2_hyp * volume_hyp) - (
+    ( (o2_data$fnep + o2_data$fatm ) * (volume_epi) +
+        (o2_data$fsed * (-1) + o2_data$fmineral  ) * (volume_hyp)))
+
+
+  idx.obs <- match(as.Date(obs_weigh_df$Date),as.Date(input.values$datetime))
+
+  obs <- cbind(as.numeric(obs_weigh_df$Epi[!is.na(idx.obs)]),
+               as.numeric(obs_weigh_df$Hyp[!is.na(idx.obs)]))
+  mod <- cbind(o2_data$o2_epi[idx.obs[!is.na(idx.obs)]]/1000,
+               o2_data$o2_hyp[idx.obs[!is.na(idx.obs)]]/1000)
+
+  fit <- sqrt(mean((obs-mod)**2,na.rm = TRUE))
+
+  o2_data$obs_tot <- NaN
+  o2_data$obs_epi <- NaN
+  o2_data$obs_hyp <- NaN
+  o2_data$obs_tot[idx.obs[!is.na(idx.obs)]] <- as.numeric(obs_weigh_df$Tot[!is.na(idx.obs)])
+  o2_data$obs_epi[idx.obs[!is.na(idx.obs)]] <- as.numeric(obs_weigh_df$Epi[!is.na(idx.obs)])
+  o2_data$obs_hyp[idx.obs[!is.na(idx.obs)]] <- as.numeric(obs_weigh_df$Hyp[!is.na(idx.obs)])
+  o2_data$date <- input.values$datetime
+  o2_data$doy <- yday(o2_data$date)
+  o2_data$year <- year(o2_data$date)
+
+  plot <- ggplot(o2_data) +
+    geom_line(aes(doy, o2_epi/1000, col = 'Epilimnion sim.')) +
+    geom_point(aes(doy, obs_epi, col = 'Epilimnion obs.'), size = 2) +
+    geom_line(aes(doy, o2_hyp/1000, col = 'Hypolimnion sim.')) +
+    geom_point(aes(doy, obs_hyp, col = 'Hypolimnion obs.'), size = 2) +
+    geom_point(aes(doy, obs_tot, col = 'Total obs.'), size = 2) +
+    facet_wrap(~year) +
+    ylab(expression("Conc. [g DO"*~m^{-3}*"]")) +
+    scale_color_manual(values = c('red1','red4','lightblue3','lightblue1','gold')) +
+    xlab('') +
+    ylim(c(-2,25)) +  theme_minimal()+
+    theme(legend.text = element_text(size = 11), axis.text.x= element_text(size = 20), plot.title = element_text(size = 20),
+          axis.text.y= element_text(size = 20), text = element_text(size = 20), legend.title = element_blank(), strip.text =element_text(size = 20),
+          legend.position = 'bottom'); plot
+
+  df.scatter = data.frame('obs' = c(obs[,1], obs[,2]), 'sim' = c(mod[,1], mod[,2]))
+  scatterplot <- ggplot(df.scatter) +
+    geom_point(aes(obs, sim), size = 2) +
+    geom_abline(intercept = 0, slope = 1)+
+    ylab(expression("Sim. [g DO"*~m^{-3}*"]")) +
+    xlab(expression("Obs. [g DO"*~m^{-3}*"]")) +  theme_minimal()+
+    theme(legend.text = element_text(size = 11), axis.text.x= element_text(size = 20), plot.title = element_text(size = 20),
+          axis.text.y= element_text(size = 20), text = element_text(size = 20), legend.title = element_blank(), strip.text =element_text(size = 20),
+          legend.position = 'bottom'); scatterplot
+
+  return(list('df' = o2_data,
+              'fit' = fit,
+              'plot' = plot,
+              'scatterplot' = scatterplot,
+              'df_kgml' = cbind(input.values, o2_data)))
+}
+
+#' run static odem
+#' @param p estimated model parameters values
+#' @param input.values input matrix of for instance thermocline depth
+#' @param nep epilimnion net ecosystem production
+#' @param min hypolimnion net ecosystem production
+#' @param sed sediment oxygen demand
+#' @param wind time series of wind velocity
+#' @param khalf half-saturation coefficient
+#' @param elev lake elevation
+#' @param verbose verbose statement
+#' @param startdate start data
+#' @param enddate end date
+#' @param field.values observed oxygen data
+#' @return list of output data, fit metric, and plot
+#' @export
+#'
+optim_odem_static_v2 <- function(p, input.values, nep = 1000, min = 100, sed = 3000,
+                              wind, khalf = 500, elev = NULL, verbose,  startdate = NULL, enddate = NULL, field.values, obs_weigh_df){
+
+  p <- lb+(ub - lb)/(10)*(p)
+
+  o2 <- odem_static_v2(input.values = input.values,
+                    nep = p[1],
+                    min = p[2],
+                    sed = p[3],
+                    wind = wind,
+                    khalf = p[4],
+                    startdate = startdate, enddate = enddate,
+                    field.values = obs_weigh_df, elev = elev, obs_weigh_df = obs_weigh_df)
+  print(o2$fit)
+  return(o2$fit)
+}
+

@@ -240,7 +240,7 @@ if (length(wtr.data) != 0){
       #                              wind = wind, elev = elevation,
       #                              verbose = verbose, startdate = startdate, enddate = enddate)
 
-      modelopt <- odem_static(input.values = input.values,
+      modelopt <- odem_static_v2(input.values = input.values,
                         nep = nep,
                         min = min,
                         sed = sed,
@@ -254,7 +254,7 @@ if (length(wtr.data) != 0){
     )
 
     if (!grepl('Error',error[1])){
-      modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
+      modelopt <- pureCMAES(par = init.val, fun = optim_odem_static_v2, lower = rep(0,4),
                             upper = rep(10,4), sigma = 0.5,
                             stopfitness = -Inf,
                             stopeval = target.iter,
@@ -269,7 +269,7 @@ if (length(wtr.data) != 0){
 
       training <- round(modelopt$fmin,2)
 
-      o2 <- odem_static(input.values = input.values,
+      o2 <- odem_static_v2(input.values = input.values,
                         nep = modelopt$xmin_unscale[1],
                         min = modelopt$xmin_unscale[2],
                         sed = modelopt$xmin_unscale[3],
@@ -292,7 +292,7 @@ if (length(wtr.data) != 0){
 
       write_feather(o2$df_kgml, paste0(folder_name,'/',lake_id,'.feather'))
 
-      o2 <- odem_static(input.values = input.values,
+      o2 <- odem_static_v2(input.values = input.values,
                         nep = modelopt$xmin_unscale[1],
                         min = modelopt$xmin_unscale[2],
                         sed = modelopt$xmin_unscale[3],
