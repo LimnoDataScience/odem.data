@@ -14,7 +14,8 @@ odem_static(
   elev = 450,
   startdate = NULL,
   enddate = NULL,
-  field.values
+  field.values,
+  obs_weigh_df
 )
 }
 \arguments{

@@ -102,7 +102,12 @@ if (length(wtr.data) != 0){
   obs = obs %>%
     arrange(ActivityStartDate)
 
-  if (any(is.na(obs$ActivityDepthHeightMeasure.MeasureValue)) == FALSE){
+  # Observations violate ODEMs pre-processing routine.
+  # if (any(is.na(obs$ActivityDepthHeightMeasure.MeasureValue)) == FALSE){
+  idtt <- which(is.na(obs$ActivityDepthHeightMeasure.MeasureValue))
+  if (length(idtt) != 0){
+    obs <- obs[-idtt,]
+  }
 
     if (is.factor(obs$ActivityDepthHeightMeasure.MeasureValue)){
       obs$ActivityDepthHeightMeasure.MeasureValue <-
@@ -222,31 +227,49 @@ if (length(wtr.data) != 0){
 
     print('Start optimization')
 
+    smp_size = floor(0.7 * nrow(obs_weigh_df))
+
     error <- try(
-      modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
-                                   upper = rep(10,4), sigma = 0.5,
-                                   stopfitness = -Inf,
-                                   stopeval = target.iter,
-                                   input.values = input.values,
-                                   field.values = obs_weigh_df,
-                                   wind = wind, elev = elevation,
-                                   verbose = verbose, startdate = startdate, enddate = enddate)
+      # modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
+      #                              upper = rep(10,4), sigma = 0.5,
+      #                              stopfitness = -Inf,
+      #                              stopeval = target.iter,
+      #                              input.values = input.values,
+      #                              field.values = obs_weigh_df[1:smp_size,],
+      #                              obs_weigh_df = obs_weigh_df[1:smp_size,],
+      #                              wind = wind, elev = elevation,
+      #                              verbose = verbose, startdate = startdate, enddate = enddate)
+
+      modelopt <- odem_static_v2(input.values = input.values,
+                        nep = nep,
+                        min = min,
+                        sed = sed,
+                        wind = wind,
+                        khalf = khalf,
+                        startdate = startdate,
+                        enddate = enddate,
+                        field.values = obs_weigh_df[1:smp_size,],
+                        obs_weigh_df = obs_weigh_df[1:smp_size,],
+                        elev = elevation)
     )
 
     if (!grepl('Error',error[1])){
-      modelopt <- pureCMAES(par = init.val, fun = optim_odem_static, lower = rep(0,4),
+      modelopt <- pureCMAES(par = init.val, fun = optim_odem_static_v2, lower = rep(0,4),
                             upper = rep(10,4), sigma = 0.5,
                             stopfitness = -Inf,
                             stopeval = target.iter,
                             input.values = input.values,
-                            field.values = obs_weigh_df,
+                            field.values = obs_weigh_df[1:smp_size,],
+                            obs_weigh_df = obs_weigh_df[1:smp_size,],
                             wind = wind, elev = elevation,
                             verbose = verbose, startdate = startdate, enddate = enddate)
 
       modelopt$xmin_unscale <- lb+(ub - lb)/(10)*(modelopt$xmin)
       save(modelopt, file = paste0(folder_name, '/calibration_fit.RData'))
 
-      o2 <- odem_static(input.values = input.values,
+      training <- round(modelopt$fmin,2)
+
+      o2 <- odem_static_v2(input.values = input.values,
                         nep = modelopt$xmin_unscale[1],
                         min = modelopt$xmin_unscale[2],
                         sed = modelopt$xmin_unscale[3],
@@ -255,15 +278,37 @@ if (length(wtr.data) != 0){
                         startdate = startdate,
                         enddate = enddate,
                         field.values = obs_weigh_df,
+                        obs_weigh_df = obs_weigh_df,
                         elev = elevation)
+
+      all <- round(o2$fit,2)
 
       o2$df$nhdhr_id <- lake_id
 
       save(o2, file = paste0(folder_name, '/modeled_o2.RData'))
 
       ggsave(file = paste0(folder_name, '/timeseries_',round(o2$fit,2),'.png'), o2$plot, dpi=300,width=350,height=300,units='mm')
+      ggsave(file = paste0(folder_name, '/scatterplot_',round(o2$fit,2),'.png'), o2$scatterplot, dpi=300,width=350,height=300,units='mm')
 
       write_feather(o2$df_kgml, paste0(folder_name,'/',lake_id,'.feather'))
+
+      o2 <- odem_static_v2(input.values = input.values,
+                        nep = modelopt$xmin_unscale[1],
+                        min = modelopt$xmin_unscale[2],
+                        sed = modelopt$xmin_unscale[3],
+                        wind = wind,
+                        khalf = modelopt$xmin_unscale[4],
+                        startdate = startdate,
+                        enddate = enddate,
+                        field.values = obs_weigh_df[(smp_size+1):(nrow(obs_weigh_df)),],
+                        obs_weigh_df = obs_weigh_df[(smp_size+1):(nrow(obs_weigh_df)),],
+                        elev = elevation)
+
+      testing <- round(o2$fit,2)
+
+      write.table(data.frame('lake_id'=lake_id,'depth'= mean(input.values$max.d),'area'= mean(input.values$area_surface),'fit_train'= training,'fit_test'= testing,'fit_tall'= all,'n_obs'= nrow(obs_weigh_df)), paste0(folder_name, '/lakeinfo.txt'),
+                  append = FALSE, sep = ",", dec = ".",
+                  row.names = FALSE, col.names = TRUE) # input data --> B-ODEM
 
       print(o2$fit)
     } else {
@@ -274,9 +319,9 @@ if (length(wtr.data) != 0){
 
 
 
-  } else {
-    print('Observations violate ODEMs pre-processing routine.')
-  }
+  # } else {
+  #   print('Observations violate ODEMs pre-processing routine.')
+  # }
 
 } else {
   print('lake_id is probably wrong or non-existent in the database.')
