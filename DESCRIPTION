@@ -12,7 +12,7 @@ Author: Authors@R: c( person("Lynette", "Gao", role = c("aut","cre"),
     email = "pchanson@wisc.edu"),
     person("Austin", "Delany", role = "aut",
     email = "addelany@wisc.edu", role = "aut"),
-    person("Joseph", "Stachelek", role = "aut",
+    person("Jemma", "Stachelek", role = "aut",
     email = "stachel2@msu.edu", role = "aut"))
 Maintainer: The package maintainer <yourself@somewhere.net>
 Description: Data preprocessing for the Oxygen DEpletion Model (ODEM). 
