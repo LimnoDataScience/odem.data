@@ -13,7 +13,12 @@ for (idx in all.dne_all){
   if (file.exists(paste0('analysis/',idx,'/lakeinfo.txt'))){
 
     load(paste0('analysis/',idx,'/modeled_o2.RData'))
-    df <- read_feather(paste0('analysis/',idx,'/',idx,'.feather'))
+    feath <- try(df <- read_feather(paste0('analysis/',idx,'/',idx,'.feather')))
+
+    if (grepl("Error", feath[1], fixed = TRUE)){
+      df <- o2$df_kgml
+      df <- df[!duplicated(colnames(df))]
+    }
 
     # obs.df <- data.frame(df$obs_epi, df$obs_hyp, df$obs_tot)
     # good.rows <- c()
