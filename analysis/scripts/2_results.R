@@ -200,7 +200,14 @@ print(mean(lstm.sites$lstm_model_rmse))
 library(tidyverse)
 library(mapview)
 library(lattice)
+library(sf)
 library(lubridate)
+library("rnaturalearth")
+library("rnaturalearthdata")
+library(here)
+library(urbnmapr)
+library(tmap)
+
 
 # install.packages('RPostgreSQL')
 library(RPostgreSQL)
@@ -225,6 +232,27 @@ con <- dbConnect(drv,
 lake_metrics <- dbGetQuery(con,'select * from data.lake_metrics', stringsAsFactors = FALSE)
 lake_metrics_reduced <- lake_metrics[!is.na(match(lake_metrics$nhd_lake_id, info.df$lake_id)),]
 lake_metrics_reduced$RMSE = info.df$fit_tall
+
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+us <- map_data("state")
+us.sf <- st_as_sf(us)
+
+gmap <- ggplot() +
+  # geom_sf(color = "black") +
+  geom_polygon(data = us, aes(x=long, y=lat,
+                              group = group), color = "black", fill = 'white',
+               size =.5, alpha = 0) +
+  geom_point(data = lake_metrics_reduced, aes(longitude, latitude, col = RMSE)) +
+  scale_color_gradient(low="darkgreen", high="red") +
+  coord_sf(xlim = c(-98, -84), ylim = c(42, 50), expand = FALSE) +
+  xlab('Longitude') + ylab('Latitude') +
+  theme_minimal(); gmap
+
+g <-( ((g1 + g2 + g3) / (g7 + g8 + g9) )  +  plot_layout(guides = 'collect') ) / (gmap) +
+  plot_annotation(tag_levels = 'A', title = paste0('Simulated lakes: ',nrow(info.df))); g
+ggsave('analysis/figures/map+plots.png', g, dpi = 300, units = 'cm', width = 80, height = 20)
+
 
 m = mapview(lake_metrics_reduced, xcol = "longitude", ycol = "latitude", zcol = "RMSE",cex = 2, crs = 4269, at = seq(0,10,1),legend = TRUE,grid = FALSE); m
 mapshot(m, file = 'analysis/figures/map.png', remove_controls = c("homeButton", "layersControl"), selfcontained = FALSE)
