@@ -27,11 +27,17 @@ anoxDym <- list()
 anoxLab <- c()
 a=1
 lake.list <- all.dne_all
+morph <- data.frame('lake' = NULL,
+                    'depth' = NULL,
+                    'area' = NULL)
 for (i in lake.list){
   load(paste0('analysis/',i,'/modeled_o2.RData'))# load('Allequash/Allequash.Rda')
   data <- o2$df_kgml
 
   elev = 400
+  morph <- rbind(morph, data.frame('lake'=i,
+                                   'depth'=mean(data$max.d),
+                                   'area' = mean(data$area_surface)))
 
   for (an in unique(data$year)){
     dataAnn = data[ which(data$year %in% an),]
@@ -156,16 +162,23 @@ ggsave(file = 'cluster.png', g.cluster, dpi = 500, width =6, height = 4)
 ggsave(file = 'annual.png', g1, dpi = 600, width =30, height = 20)
 
 
-## Cluster stratification duration boxplots
-# clust.strat.dur <- c()
-# for (ix in (unique(na.omit(m.df.grd$value)))){
-#   da.clust <- m.df.grd[which(ix == m.df.grd$value),]
-#   for (i in 1:nrow(da.clust)){
-#     year.x <- strat.dur[which(da.clust$variable[i] == strat.dur$year),]
-#     lake.x <- year.x[which(da.clust$lake[i] == year.x$lake),]
-#     clust.strat.dur <- rbind(clust.strat.dur, data.frame('cluster' = ix, 'stratdur' = lake.x$dur))
-#   }
-# }
-#
-# ggplot(clust.strat.dur, aes(x = cluster, y = stratdur)) +
-#   geom_boxplot()
+types = m.df.grd %>%
+  group_by(lake) %>%
+  mutate(type = (factor(value))) %>%
+  summarize(ct = names(which.max(table(type)))) # constant convex linear
+
+landuse = read_csv('lstm/landuse.csv')
+types$lndu <- factor(landuse$LANDUSE[match(types$lake,landuse$nhdr_id)])
+types$ct = factor(types$ct)
+
+morph$depthf <- cut(morph$depth, c(0, 5, 10, 15, 20, 25, 30, 35, 40, 50, 80, 250, Inf))
+morph$areaf <- cut(morph$area, c(0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e9))
+
+types$depthf = morph$depthf[match(types$lake,morph$lake)]
+types$areaf = morph$areaf[match(types$lake,morph$lake)]
+
+# 187 lakes
+model <- glm(ct~lndu + depthf + areaf, family="binomial", data=na.omit(types))
+summary(model)
+
+pscl::pR2(model)["McFadden"]
