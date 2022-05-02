@@ -1,0 +1,2 @@
+"lake_id","depth","area","fit_train","fit_test","fit_tall","n_obs"
+"nhdhr_120020342",7.62,298718.82078728,2.5,1.96,2.35,110
