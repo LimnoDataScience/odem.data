@@ -325,6 +325,19 @@ g <- plot_roc_df %>%
   theme_bw(); g
 ggsave(file = 'analysis/figures/auc.png', g, dpi = 600, width =6, height = 3)
 
+library(vegan)
+
+
+# default test by terms
+# dys * lndu * depth * eutro * oligo * area/WshA + RT
+an.data <- data %>%
+  mutate(ct = as.numeric(ct),
+         lndu = as.numeric(lndu),
+         normArea = area/WshA) %>%
+  select(dys, lndu, depth, eutro, oligo, normArea, RT, ct)
+model.div <- adonis2(formula  = an.data ~ ct * lndu, data = an.data, permutations = 999, method="bray", sqrt.dist = TRUE)
+
+print(model.div)
 
 # calculate area under curve
 auc( roc_object )
