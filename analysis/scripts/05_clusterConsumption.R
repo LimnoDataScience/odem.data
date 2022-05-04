@@ -75,9 +75,9 @@ distMatrix <- dist(anoxDym2, method= 'euclidean')
 
 hc <- hclust(distMatrix, method='ward.D')
 plot(hc, main='')
-groups <- cutree(hc, k=4) #k=5) # cut tree into 7 clusters
+groups <- cutree(hc, k=3) #k=5) # cut tree into 7 clusters
 
-rect.hclust(hc, k=4,border='red')#k=7
+rect.hclust(hc, k=3,border='red')#k=7
 indMycl = unique(groups)
 dataGroups = list()
 idz = as.numeric(table(groups))
@@ -101,7 +101,7 @@ for (i in 1:length(indMycl)){
 }
 
 df = as.data.frame(dataGroups)
-names(df) = c('Weak','Linear','Constant','Convex')
+names(df) = c('Weak','Linear','Constant')#,'Convex')
 
 nameVec = names(df)
 df$depth = seq(1,nrow(df))
@@ -114,12 +114,12 @@ table(groups)[1]
 df.long = df %>%
   dplyr::select(lakeinv, depth) %>%
   pivot_longer(lakeinv) %>%
-  mutate(name = fct_relevel(name,'Weak','Linear','Constant','Convex'))#'Linear','Constant','Convex'))
+  mutate(name = fct_relevel(name,'Weak','Linear','Constant'))#,'Convex'))#'Linear','Constant','Convex'))
 
 # Cluster lables
 cluster.labels = NA
 # order = match(lakeinv, c('Hypoxic','Linear','Convex')) # Order in the same way as
-order = match(lakeinv, c('Weak','Linear','Constant','Convex'))#c('Linear','Constant','Convex')) # Order in the same way as
+order = match(lakeinv, c('Weak','Linear','Constant'))#,'Convex'))#c('Linear','Constant','Convex')) # Order in the same way as
 for (i in 1:5){
   j = order[i]
   cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -192,7 +192,7 @@ types$areaf = morph$areaf[match(types$lake,morph$lake)]
 types$depth = log10(morph$depth[match(types$lake,morph$lake)])
 types$area = log10(morph$area[match(types$lake,morph$lake)])
 
-write_csv(x = types, file = 'analysis/figures/model.csv', col_names = T)
+types$elev = log10(morph$elev[match(types$lake,morph$lake)])
 
 # 187 lakes
 ## 75% of the sample size
@@ -202,6 +202,21 @@ link <- read_csv('analysis/figures/nhd_hydrolakes_nla.csv')
 types$eutro <- troph$eu.mixo[match(types$lake,troph$site_id)]
 types$dys <- troph$dys[match(types$lake,troph$site_id)]
 types$oligo <- troph$oligo[match(types$lake,troph$site_id)]
+
+types$Blue <- troph$Blue[match(types$lake,troph$site_id)]
+types$Green <- troph$Green[match(types$lake,troph$site_id)]
+types$Nir <- troph$Nir[match(types$lake,troph$site_id)]
+types$Red <- troph$Red[match(types$lake,troph$site_id)]
+
+# residence times
+library(sf)
+hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES/HydroLAKES_points_v10_shp/HydroLAKES_points_v10.shp")
+
+types$RT <- hydLakes$Res_time[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
+types$WshA <- hydLakes$Wshd_area[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
+types$dep_avg <- hydLakes$Depth_avg[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
+
+write_csv(x = types, file = 'analysis/figures/model.csv', col_names = T)
 
 data = na.omit(types)
 smp_size <- floor(0.75 * nrow(data))
@@ -217,9 +232,40 @@ test <- data[-train_ind, ]
 library(nnet)
 
 
-model <- multinom(ct ~ dys * lndu * depth * area * eutro * oligo , data = train)
+model <- multinom(ct ~ dys * lndu * depth * eutro * oligo * area/WshA + RT, data = train)
+
+model <- multinom(ct ~ dys * eutro * oligo + lndu + depth * area/WshA * RT, data = train)
+
+# model <- nnet(ct ~ dys + lndu + depth  + eutro + oligo + area + RT + elev +
+#                 Red * Green * Blue * Nir, data = train, size = 10)
+
+model <- multinom(ct ~  developed *forest * cultivated * wetlands + depth * area + eutro * oligo * dys + Red * Green * Blue * Nir + RT + elev, data = train)
 
 summary(model)
+
+# https://datasciencebeginners.com/2018/12/20/multinomial-logistic-regression-using-r/
+## extracting coefficients from the model and exponentiate
+exp(coef(model))
+
+head(probability.table <- fitted(model))
+
+# Predicting the values for train dataset
+train$precticed <- predict(model, newdata = train, "class")
+
+# Building classification table
+ctable <- table(train$ct, train$precticed)
+
+# Calculating accuracy - sum of diagonal elements divided by total obs
+round((sum(diag(ctable))/sum(ctable))*100,2)
+
+# Predicting the values for train dataset
+test$precticed <- predict(model, newdata = test, "class")
+
+# Building classification table
+ctable <- table(test$ct, test$precticed)
+
+# Calculating accuracy - sum of diagonal elements divided by total obs
+round((sum(diag(ctable))/sum(ctable))*100,2)
 
 pscl::pR2(model)["McFadden"]
 
@@ -228,6 +274,7 @@ library(multiROC)
 
 # predicted data
 prediction <- predict(model, test, type="probs")
+
 
 # create roc curve
 roc_object <- multiclass.roc( test$ct, prediction)
@@ -239,20 +286,20 @@ truerel <-data.frame(var = test$ct, value = 1) %>%
   pivot_wider(names_from = var, values_from = value) %>%
   replace_na(list(Linear = 0,
                   Constant = 0,
-                  Convex = 0,
+                #  Convex = 0,
                   Weak = 0)) %>%
   select(-rowname) %>%
   rename(Linear_true = Linear,
          Constant_true = Constant,
-         Convex_true = Convex,
+        # Convex_true = Convex,
          Weak_true = Weak) %>%
   data.frame() %>%
   bind_cols(., prediction %>%
               data.frame() %>%
-              select(Linear, Constant, Convex, Weak) %>%
+              select(Linear, Constant, Weak) %>%
               rename(Linear_pred_1 = Linear,
                      Constant_pred_1 = Constant,
-                     Convex_pred_1 = Convex,
+                  #   Convex_pred_1 = Convex,
                      Weak_pred_1 = Weak))
 
 roc_object <- multi_roc(data.frame(truerel))
