@@ -101,7 +101,7 @@ for (i in 1:length(indMycl)){
 }
 
 df = as.data.frame(dataGroups)
-names(df) = c('Weak','Linear','Constant')#,'Convex')
+names(df) = c('Linear','Constant','Anoxia')#,'Convex')
 
 nameVec = names(df)
 df$depth = seq(1,nrow(df))
@@ -114,12 +114,12 @@ table(groups)[1]
 df.long = df %>%
   dplyr::select(lakeinv, depth) %>%
   pivot_longer(lakeinv) %>%
-  mutate(name = fct_relevel(name,'Weak','Linear','Constant'))#,'Convex'))#'Linear','Constant','Convex'))
+  mutate(name = fct_relevel(name,'Linear','Constant','Anoxia'))#,'Convex'))#'Linear','Constant','Convex'))
 
 # Cluster lables
 cluster.labels = NA
 # order = match(lakeinv, c('Hypoxic','Linear','Convex')) # Order in the same way as
-order = match(lakeinv, c('Weak','Linear','Constant'))#,'Convex'))#c('Linear','Constant','Convex')) # Order in the same way as
+order = match(lakeinv, c('Linear','Constant','Anoxia'))#,'Convex'))#c('Linear','Constant','Convex')) # Order in the same way as
 for (i in 1:5){
   j = order[i]
   cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -156,7 +156,7 @@ m.df.grd <- reshape2::melt(df.grd, id.vars = 'lake')
 # m.df.grd$lake <- factor(m.df.grd$lake, levels= rev(c("Allequash","BigMuskellunge","Crystal","Sparkling", "Trout","Fish","Mendota","Monona")))
 g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
   scale_fill_manual(values = c('gold','lightblue1','red4','green'), name = 'Cluster',
-                    breaks = c('Weak','Linear','Constant','Convex')) + #c('Linear','Constant','Convex')) +
+                    breaks = c('Linear','Constant','Anoxia')) + #c('Linear','Constant','Convex')) +
   geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
   labs(x = 'Time', y = '') +
   theme_minimal(base_size = 8) +
@@ -216,34 +216,59 @@ types$RT <- hydLakes$Res_time[match(troph$Hylak_id[match(types$lake,troph$site_i
 types$WshA <- hydLakes$Wshd_area[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
 types$dep_avg <- hydLakes$Depth_avg[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
 
+col <- read_csv('analysis/figures/limnosat_redux_raw_rel_reflectance_ptl_color.csv')
+# types$NDVI <- (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] - col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)]) /
+#   (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] + col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)])
+
 write_csv(x = types, file = 'analysis/figures/model.csv', col_names = T)
 
 data = na.omit(types)
-smp_size <- floor(0.75 * nrow(data))
+
+normalize <- function(x) {
+  num <- x - min(x)
+  denom <- max(x) - min(x)
+  return (num/denom)
+}
+
+
+# smp_size <- floor(0.75 * nrow(data))
+smp_size_1 <- floor(0.75 * nrow(data[which(data$ct == 'Constant'),]))
+smp_size_2 <- floor(0.75 * nrow(data[which(data$ct == 'Linear'),]))
+smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'Anoxia'),]))
 
 ## set the seed to make your partition reproducible
 set.seed(123)
-train_ind <- sample(seq_len(nrow(data)), size = smp_size)
+# train_ind <- sample(seq_len(nrow(data)), size = smp_size)
+train_ind_1 <- sample(seq_len(nrow(data[which(data$ct == 'Constant'),])), size = smp_size_1)
+train_ind_2 <- sample(seq_len(nrow(data[which(data$ct == 'Linear'),])), size = smp_size_2)
+train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'Anoxia'),])), size = smp_size_3)
 
-train <- data[train_ind, ]
-test <- data[-train_ind, ]
+train <- data[c(train_ind_1,train_ind_2, train_ind_3), ]
+test <- data[-c(train_ind_1,train_ind_2, train_ind_3), ]
 
 
 library(nnet)
 
 
 model <- multinom(ct ~ dys * lndu * depth * eutro * oligo * area/WshA + RT, data = train)
+model <- multinom(ct ~ normalize(area)/normalize(WshA)  * lndu * normalize(RT) + eutro * oligo * dys + normalize(depth) , data = train)
 
-model <- multinom(ct ~ dys * eutro * oligo + lndu + depth * area/WshA * RT, data = train)
+
+# model <- multinom(ct ~ dys * eutro * oligo + lndu + depth * area/WshA * RT, data = train)
 
 # model <- nnet(ct ~ dys + lndu + depth  + eutro + oligo + area + RT + elev +
 #                 Red * Green * Blue * Nir, data = train, size = 10)
 
-model <- multinom(ct ~  developed *forest * cultivated * wetlands + depth * area + eutro * oligo * dys + Red * Green * Blue * Nir + RT + elev, data = train)
+# model <- multinom(ct ~  developed *forest * cultivated * wetlands + depth * area + eutro * oligo * dys + Red * Green * Blue * Nir + RT + elev, data = train)
 
 summary(model)
+summary(model)$AIC
+z <- summary(model)$coefficients/summary(model)$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+print(p)
 
 # https://datasciencebeginners.com/2018/12/20/multinomial-logistic-regression-using-r/
+# https://stats.oarc.ucla.edu/r/dae/multinomial-logistic-regression/
 ## extracting coefficients from the model and exponentiate
 exp(coef(model))
 
@@ -287,20 +312,20 @@ truerel <-data.frame(var = test$ct, value = 1) %>%
   replace_na(list(Linear = 0,
                   Constant = 0,
                 #  Convex = 0,
-                  Weak = 0)) %>%
+                  Anoxia = 0)) %>%
   select(-rowname) %>%
   rename(Linear_true = Linear,
          Constant_true = Constant,
         # Convex_true = Convex,
-         Weak_true = Weak) %>%
+         Anoxia_true = Anoxia) %>%
   data.frame() %>%
   bind_cols(., prediction %>%
               data.frame() %>%
-              select(Linear, Constant, Weak) %>%
+              select(Linear, Constant, Anoxia) %>%
               rename(Linear_pred_1 = Linear,
                      Constant_pred_1 = Constant,
                   #   Convex_pred_1 = Convex,
-                     Weak_pred_1 = Weak))
+                     Anoxia_pred_1 = Anoxia))
 
 roc_object <- multi_roc(data.frame(truerel))
 
