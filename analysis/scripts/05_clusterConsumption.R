@@ -196,17 +196,20 @@ types$elev = log10(morph$elev[match(types$lake,morph$lake)])
 
 # 187 lakes
 ## 75% of the sample size
-troph <- read_csv('analysis/figures/ts_oxygen_join.csv')
+troph_old <- read_csv('analysis/figures/ts_oxygen_join.csv')
+troph <- read_csv('analysis/figures/complete_lake_predictions.csv')
 link <- read_csv('analysis/figures/nhd_hydrolakes_nla.csv')
 
-types$eutro <- troph$eu.mixo[match(types$lake,troph$site_id)]
-types$dys <- troph$dys[match(types$lake,troph$site_id)]
-types$oligo <- troph$oligo[match(types$lake,troph$site_id)]
+types$site_id <- link$Hylak_id[match(types$lake,link$site_id[match(troph$Hylak_id, link$Hylak_id)])]
 
-types$Blue <- troph$Blue[match(types$lake,troph$site_id)]
-types$Green <- troph$Green[match(types$lake,troph$site_id)]
-types$Nir <- troph$Nir[match(types$lake,troph$site_id)]
-types$Red <- troph$Red[match(types$lake,troph$site_id)]
+types$eutro <- troph$`prob_eu/mixo`[match(types$site_id,troph$Hylak_id)]
+types$dys <- troph$prob_dys[match(types$lake,troph$site_id)]
+types$oligo <- troph$prob_oligo[match(types$lake,troph$site_id)]
+
+# types$Blue <- troph$Blue[match(types$lake,troph$site_id)]
+# types$Green <- troph$Green[match(types$lake,troph$site_id)]
+# types$Nir <- troph$Nir[match(types$lake,troph$site_id)]
+# types$Red <- troph$Red[match(types$lake,troph$site_id)]
 
 # residence times
 library(sf)
@@ -220,9 +223,11 @@ col <- read_csv('analysis/figures/limnosat_redux_raw_rel_reflectance_ptl_color.c
 # types$NDVI <- (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] - col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)]) /
 #   (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] + col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)])
 
-write_csv(x = types, file = 'analysis/figures/model.csv', col_names = T)
+write_csv(x = types, file = 'analysis/figures/model_june22.csv', col_names = T)
 
-data = na.omit(types)
+write_csv(x = data.frame('nhdhr' = types$lake), file = 'analysis/figures/my_nhdhr.csv', col_names = T)
+
+data = as.data.frame(na.omit(types))
 
 normalize <- function(x) {
   num <- x - min(x)
