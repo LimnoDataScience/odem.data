@@ -36,7 +36,7 @@ for (i in lake.list){
     next
   }
   info <- read.csv(paste0('analysis/',i,'/lakeinfo.txt'))
-  if (info$fit_train > 3 | info$n_obs <= 5){
+  if (info$fit_tall > 3 | info$n_obs <= 10){ #fit_train, 5
     next
   }
   load(paste0('analysis/',i,'/modeled_o2.RData'))# load('Allequash/Allequash.Rda')
@@ -124,7 +124,7 @@ for (i in 1:length(indMycl)){
 }
 
 df = as.data.frame(dataGroups)
-names(df) = c('Semi-bad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
+names(df) = c('SemiBad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
 
 nameVec = names(df)
 df$depth = seq(1,nrow(df))
@@ -137,12 +137,12 @@ table(groups)[1]
 df.long = df %>%
   dplyr::select(lakeinv, depth) %>%
   pivot_longer(lakeinv) %>%
-  mutate(name = fct_relevel(name,  'Semi-bad','Good','Bad'))
+  mutate(name = fct_relevel(name,  'SemiBad','Good','Bad'))
 
 # Cluster lables
 cluster.labels = NA
 
-order = match(lakeinv, c('Semi-bad','Good','Bad'))
+order = match(lakeinv, c('SemiBad','Good','Bad'))
 for (i in 1:5){
   j = order[i]
   cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -179,7 +179,7 @@ m.df.grd <- reshape2::melt(df.grd, id.vars = 'lake')
 
 g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
   scale_fill_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
-                    breaks = c('Semi-bad','Good','Bad')) +
+                    breaks = c('SemiBad','Good','Bad')) +
   geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
   labs(x = 'Time', y = '') +
   theme_minimal(base_size = 8) +
@@ -295,7 +295,8 @@ gmap <- ggplot() +
   geom_polygon(data = us, aes(x=long, y=lat,
                               group = group), color = "black", fill = 'white',
                size =.5, alpha = 0) +
-  geom_point(data = data, aes(longitude, latitude, col = ct, size = (depth), shape = trophic)) +
+  # geom_point(data = data, aes(longitude, latitude, col = lndu), size = 3) +
+  geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct)) +
   # scale_color_gradient(low="darkgreen", high="red") +
   coord_sf(xlim = c(-98, -84), ylim = c(42, 50), expand = FALSE) +
   xlab('Longitude') + ylab('Latitude') +
@@ -318,17 +319,101 @@ normalize <- function(x) {
 # smp_size <- floor(0.75 * nrow(data))
 smp_size_1 <- floor(0.75 * nrow(data[which(data$ct == 'Bad'),]))
 smp_size_2 <- floor(0.75 * nrow(data[which(data$ct == 'Good'),]))
-# smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'Anoxia'),]))
+smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'SemiBad'),]))
 
 ## set the seed to make your partition reproducible
 set.seed(123)
 # train_ind <- sample(seq_len(nrow(data)), size = smp_size)
 train_ind_1 <- sample(seq_len(nrow(data[which(data$ct == 'Bad'),])), size = smp_size_1)
 train_ind_2 <- sample(seq_len(nrow(data[which(data$ct == 'Good'),])), size = smp_size_2)
-train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'Anoxia'),])), size = smp_size_3)
+train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'SemiBad'),])), size = smp_size_3)
 
 train <- data[c(train_ind_1,train_ind_2), ]
 test <- data[-c(train_ind_1,train_ind_2), ]
+
+library(vegan)
+# https://jkzorz.github.io/2020/04/04/NMDS-extras.html
+df_data = data[,c("ct", "developed", "forest", "cultivated", "wetlands",
+                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT", "WshA",
+                  "dep_avg")]
+ext = df_data[, c("developed", "forest", "cultivated", "wetlands")]
+int = df_data[, c("ct", "depth", "area", "elev", "eutro", "dys", "oligo", "RT","dep_avg","WshA")]
+
+ext_com = as.matrix(ext)
+
+#nmds code
+set.seed(123)
+nmds = metaMDS(ext_com, distance = "bray", k =3)
+nmds
+
+en = envfit(nmds, int, permutations = 999, na.rm = TRUE)
+en
+
+plot(nmds)
+plot(en)
+
+data.scores = as.data.frame(scores(nmds))
+data.scores$trophic <- data$lndu
+
+en_coord_cont = as.data.frame(scores(en, "vectors")) * ordiArrowMul(en)
+en_coord_cat = as.data.frame(scores(en, "factors")) * ordiArrowMul(en)
+
+g.nmds_1d <- ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
+  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5) +
+  # scale_colour_manual(values = c("orange", "steelblue", "red4"))  +
+  geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+               data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") +
+  geom_point(data = en_coord_cat, aes(x = NMDS1, y = NMDS2),
+             shape = "diamond", size = 4, alpha = 0.6, colour = "navy") +
+  geom_text(data = en_coord_cat, aes(x = NMDS1, y = NMDS2+0.04),
+            label = row.names(en_coord_cat), colour = "navy", fontface = "bold") +
+  geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30",
+            fontface = "bold", label = row.names(en_coord_cont)) +
+  theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"),
+        panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"),
+        axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(),
+        legend.title = element_text(size = 10, face = "bold", colour = "grey30"),
+        legend.text = element_text(size = 9, colour = "grey30")) +
+  labs(colour = "Landuse")
+
+g.nmds_2d <- ggplot(data = data.scores, aes(x = NMDS1, y = NMDS3)) +
+  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5) +
+  # scale_colour_manual(values = c("orange", "steelblue", "red4"))  +
+  geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+               data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") +
+  geom_point(data = en_coord_cat, aes(x = NMDS1, y = NMDS2),
+             shape = "diamond", size = 4, alpha = 0.6, colour = "navy") +
+  geom_text(data = en_coord_cat, aes(x = NMDS1, y = NMDS2+0.04),
+            label = row.names(en_coord_cat), colour = "navy", fontface = "bold") +
+  geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30",
+            fontface = "bold", label = row.names(en_coord_cont)) +
+  theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"),
+        panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"),
+        axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(),
+        legend.title = element_text(size = 10, face = "bold", colour = "grey30"),
+        legend.text = element_text(size = 9, colour = "grey30")) +
+  labs(colour = "Landuse")
+
+g.nmds_3d <- ggplot(data = data.scores, aes(x = NMDS2, y = NMDS3)) +
+  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5) +
+  # scale_colour_manual(values = c("orange", "steelblue", "red4"))  +
+  geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+               data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") +
+  geom_point(data = en_coord_cat, aes(x = NMDS1, y = NMDS2),
+             shape = "diamond", size = 4, alpha = 0.6, colour = "navy") +
+  geom_text(data = en_coord_cat, aes(x = NMDS1, y = NMDS2+0.04),
+            label = row.names(en_coord_cat), colour = "navy", fontface = "bold") +
+  geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30",
+            fontface = "bold", label = row.names(en_coord_cont)) +
+  theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"),
+        panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"),
+        axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(),
+        legend.title = element_text(size = 10, face = "bold", colour = "grey30"),
+        legend.text = element_text(size = 9, colour = "grey30")) +
+  labs(colour = "Landuse")
+
+g.nmds = g.nmds_1d + g.nmds_2d + g.nmds_3d; g.nmds
+ggsave(file = 'analysis/figures/nmds.png', g.nmds, dpi = 600, width =14, height = 5)
 
 
 library(data.table)
@@ -401,9 +486,11 @@ test_h <- glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + dep
 optimal_model_glmulti_exhaustive <- test_h@objects[[1]]
 print(optimal_model_glmulti_exhaustive)
 
+png(file='analysis/figures/effects.png', width = 25, height = 20, units = "cm",res = 600)
 plot(effects::allEffects(test_h@objects[[1]]),
      lines = list(multiline = T),
      confint = list(style = "auto"))
+dev.off()
 
 plot(test_h)
 
@@ -423,6 +510,7 @@ car::Anova(best_model)
 model <- multinom(ct ~ dys * lndu * depth * eutro * oligo * area/WshA + RT, data = train)
 model <- multinom(ct ~ normalize(area)/normalize(WshA)  * lndu * normalize(RT) + eutro * oligo * dys + normalize(depth) , data = train)
 model <- multinom(ct ~ lndu * normalize(RT) + eutro * oligo * dys + normalize(depth) , data = train)
+model <- multinom(ct ~ developed + forest + cultivated + wetlands + depth + area + oligo + trophic, data = train)
 
 
 # model <- multinom(ct ~ dys * eutro * oligo + lndu + depth * area/WshA * RT, data = train)
@@ -480,23 +568,23 @@ roc_object <- multiclass.roc( test$ct, prediction)
 truerel <-data.frame(var = test$ct, value = 1) %>%
   rownames_to_column() %>%
   pivot_wider(names_from = var, values_from = value) %>%
-  replace_na(list(Linear = 0,
-                  Constant = 0,
+  replace_na(list(Bad = 0,
+                  Good = 0,
                   #  Convex = 0,
-                  Anoxia = 0)) %>%
+                  SemiBad = 0)) %>%
   select(-rowname) %>%
-  rename(Linear_true = Linear,
-         Constant_true = Constant,
+  rename(Bad_true = Bad,
+         Good_true = Good,
          # Convex_true = Convex,
-         Anoxia_true = Anoxia) %>%
+         SemiBad_true = SemiBad) %>%
   data.frame() %>%
   bind_cols(., prediction %>%
               data.frame() %>%
-              select(Linear, Constant, Anoxia) %>%
-              rename(Linear_pred_1 = Linear,
-                     Constant_pred_1 = Constant,
+              select(Bad, Good, SemiBad) %>%
+              rename(Bad_pred_1 = Bad,
+                     Good_pred_1 = Good,
                      #   Convex_pred_1 = Convex,
-                     Anoxia_pred_1 = Anoxia))
+                     SemiBad_pred_1 = SemiBad))
 
 roc_object <- multi_roc(data.frame(truerel))
 
@@ -520,22 +608,3 @@ g <- plot_roc_df %>%
   facet_wrap(~Group) +
   theme_bw(); g
 ggsave(file = 'analysis/figures/auc.png', g, dpi = 600, width =6, height = 3)
-
-library(vegan)
-
-
-# default test by terms
-# dys * lndu * depth * eutro * oligo * area/WshA + RT
-an.data <- data %>%
-  mutate(ct = as.numeric(ct),
-         lndu = as.numeric(lndu),
-         normArea = area/WshA) %>%
-  select(dys, lndu, depth, eutro, oligo, normArea, RT, ct)
-model.div <- adonis2(formula  = an.data ~ ct * lndu, data = an.data, permutations = 999, method="bray", sqrt.dist = TRUE)
-
-print(model.div)
-
-# calculate area under curve
-auc( roc_object )
-
-plot(roc_object)
