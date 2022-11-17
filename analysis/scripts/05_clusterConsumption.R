@@ -124,7 +124,7 @@ for (i in 1:length(indMycl)){
 }
 
 df = as.data.frame(dataGroups)
-names(df) = c('Semi-bad','Good','Bad')#,'Convex')
+names(df) = c('Semi-bad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
 
 nameVec = names(df)
 df$depth = seq(1,nrow(df))
@@ -137,7 +137,7 @@ table(groups)[1]
 df.long = df %>%
   dplyr::select(lakeinv, depth) %>%
   pivot_longer(lakeinv) %>%
-  mutate(name = fct_relevel(name, 'Semi-bad','Good','Bad'))
+  mutate(name = fct_relevel(name,  'Semi-bad','Good','Bad'))
 
 # Cluster lables
 cluster.labels = NA
@@ -151,7 +151,7 @@ for (i in 1:5){
 # Cluster plotting
 g.cluster = ggplot(df.long) +
   geom_line(aes(depth, value, color = name)) +
-  scale_color_manual(values = c('gold','lightblue1','red4','red1','red4'), name = 'Cluster',
+  scale_color_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
                      labels = cluster.labels) +
   xlab('Stratification duration [%]') +
   ylab('Ratio of Hypolimnion to \nSaturation DO [-]') +
@@ -178,7 +178,7 @@ for (i in 1:4) {
 m.df.grd <- reshape2::melt(df.grd, id.vars = 'lake')
 
 g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
-  scale_fill_manual(values = c('gold','lightblue1','red4','green'), name = 'Cluster',
+  scale_fill_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
                     breaks = c('Semi-bad','Good','Bad')) +
   geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
   labs(x = 'Time', y = '') +
@@ -277,28 +277,32 @@ con <- dbConnect(drv,
 lake_metrics <- dbGetQuery(con,'select * from data.lake_metrics', stringsAsFactors = FALSE)
 lake_metrics_reduced <- lake_metrics[!is.na(match(lake_metrics$nhd_lake_id, data$lake)),]
 
-map_data = data
-map_data$longitude <- lake_metrics$longitude[!is.na(match(lake_metrics$nhd_lake_id, data$lake))]
-map_data$latitude <- lake_metrics$latitude[!is.na(match(lake_metrics$nhd_lake_id, data$lake))]
+
+data$longitude <- lake_metrics$longitude[!is.na(match(lake_metrics$nhd_lake_id, data$lake))]
+data$latitude <- lake_metrics$latitude[!is.na(match(lake_metrics$nhd_lake_id, data$lake))]
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 us <- map_data("state")
 
-map_data <- map_data %>%
-  mutate(trophic = )
+data <- data %>%
+  mutate(trophic = case_when(eutro > oligo & eutro > dys & eutro >= 0.75 ~ 'eutro',
+                             oligo > eutro & oligo > dys & oligo  >= 0.75 ~ 'oligo',
+                             dys > eutro & dys > oligo & dys  >= 0.75  ~ 'dys')) %>%
+  mutate(trophic = ifelse(is.na(trophic), 'gray', trophic))
 
 gmap <- ggplot() +
   # geom_sf(color = "black") +
   geom_polygon(data = us, aes(x=long, y=lat,
                               group = group), color = "black", fill = 'white',
                size =.5, alpha = 0) +
-  geom_point(data = map_data, aes(longitude, latitude, col = ct, size = (depth), shape = ct)) +
+  geom_point(data = data, aes(longitude, latitude, col = ct, size = (depth), shape = trophic)) +
   # scale_color_gradient(low="darkgreen", high="red") +
   coord_sf(xlim = c(-98, -84), ylim = c(42, 50), expand = FALSE) +
   xlab('Longitude') + ylab('Latitude') +
-  theme_minimal(); gmap
+  theme_light(); gmap
+ggsave(file = 'analysis/figures/map.png', gmap, dpi = 600, width =15, height = 10)
 
-map_data[which(map_data$lake == 'nhdhr_143249470'),]
+map_data[which(data$lake == 'nhdhr_143249470'),]
 
 # m = mapview(map_data, xcol = "longitude", ycol = "latitude", zcol = "eutro",cex = 2, crs = 4269, at = seq(0,1,0.1),legend = TRUE,grid = FALSE); m
 # mapshot(m, file = 'analysis/figures/map.png', remove_controls = c("homeButton", "layersControl"), selfcontained = FALSE)
@@ -312,19 +316,19 @@ normalize <- function(x) {
 
 
 # smp_size <- floor(0.75 * nrow(data))
-smp_size_1 <- floor(0.75 * nrow(data[which(data$ct == 'Constant'),]))
-smp_size_2 <- floor(0.75 * nrow(data[which(data$ct == 'Linear'),]))
-smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'Anoxia'),]))
+smp_size_1 <- floor(0.75 * nrow(data[which(data$ct == 'Bad'),]))
+smp_size_2 <- floor(0.75 * nrow(data[which(data$ct == 'Good'),]))
+# smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'Anoxia'),]))
 
 ## set the seed to make your partition reproducible
 set.seed(123)
 # train_ind <- sample(seq_len(nrow(data)), size = smp_size)
-train_ind_1 <- sample(seq_len(nrow(data[which(data$ct == 'Constant'),])), size = smp_size_1)
-train_ind_2 <- sample(seq_len(nrow(data[which(data$ct == 'Linear'),])), size = smp_size_2)
+train_ind_1 <- sample(seq_len(nrow(data[which(data$ct == 'Bad'),])), size = smp_size_1)
+train_ind_2 <- sample(seq_len(nrow(data[which(data$ct == 'Good'),])), size = smp_size_2)
 train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'Anoxia'),])), size = smp_size_3)
 
-train <- data[c(train_ind_1,train_ind_2, train_ind_3), ]
-test <- data[-c(train_ind_1,train_ind_2, train_ind_3), ]
+train <- data[c(train_ind_1,train_ind_2), ]
+test <- data[-c(train_ind_1,train_ind_2), ]
 
 
 library(data.table)
@@ -336,7 +340,8 @@ library(effects)
 library(flextable)
 # library(sjPlot)
 
-glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + depth + area + elev + eutro + dys + oligo + RT + WshA + dep_avg ,
+glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + depth + area + elev + eutro + dys + oligo + log10(RT) + log10(WshA) + log10(dep_avg) +
+          trophic,
         data   = data,
         # crit   = aicc,       # AICC corrected AIC for small samples
         level  = 1,          # 2 with interactions, 1 without
@@ -373,7 +378,8 @@ test_h <- glmulti(ct   ~lndu + developed + forest + cultivated + wetlands + dept
         fitfunction = multinom,   # Type of model (LM, GLM etc.)
         confsetsize = 100)   # Keep 100 best models
 
-test_h <- glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + (depth) + (area) + (elev) + eutro + dys + oligo + RT + log10(WshA) + log10(dep_avg),
+test_h <- glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + depth + area + elev +
+                    eutro + dys + oligo + log10(RT) + log10(WshA) + log10(dep_avg) + trophic,# + trophic,
                   data   = data,
                   # crit   = aicc,       # AICC corrected AIC for small samples
                   level  = 1,          # 2 with interactions, 1 without
@@ -381,6 +387,16 @@ test_h <- glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + (de
                   # family = gaussian,
                   fitfunction = multinom,   # Type of model (LM, GLM etc.)
                   confsetsize = 100)   # Keep 100 best models
+
+# test_h <- glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + depth + area + elev +
+#                     eutro + dys + oligo + log10(RT) + log10(WshA) + log10(dep_avg),# + trophic,
+#                   data   = data,
+#                   # crit   = aicc,       # AICC corrected AIC for small samples
+#                   level  = 1,          # 2 with interactions, 1 without
+#                   method = "h",        # "d", or "h", or "g"
+#                   family = binomial,
+#                   fitfunction = glm,   # Type of model (LM, GLM etc.)
+#                   confsetsize = 100)   # Keep 100 best models
 
 optimal_model_glmulti_exhaustive <- test_h@objects[[1]]
 print(optimal_model_glmulti_exhaustive)
@@ -401,8 +417,8 @@ best_model <- test_h@objects[[2]]
 
 car::Anova(best_model)
 
-plot_model(best_model, type = "int") %>%
-  plot_grid()
+# plot_model(best_model, type = "int") %>%
+#   plot_grid()
 
 model <- multinom(ct ~ dys * lndu * depth * eutro * oligo * area/WshA + RT, data = train)
 model <- multinom(ct ~ normalize(area)/normalize(WshA)  * lndu * normalize(RT) + eutro * oligo * dys + normalize(depth) , data = train)
