@@ -353,7 +353,7 @@ plot(nmds)
 plot(en)
 
 data.scores = as.data.frame(scores(nmds))
-data.scores$trophic <- data$lndu
+data.scores$trophic <- data$ct
 
 en_coord_cont = as.data.frame(scores(en, "vectors")) * ordiArrowMul(en)
 en_coord_cat = as.data.frame(scores(en, "factors")) * ordiArrowMul(en)
