@@ -124,11 +124,7 @@ for (i in 1:length(indMycl)){
 }
 
 df = as.data.frame(dataGroups)
-<<<<<<< HEAD
 names(df) = c('Semi-bad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
-=======
-names(df) = c('Linear','Constant','Anoxia')#,'Convex')
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
 
 nameVec = names(df)
 df$depth = seq(1,nrow(df))
@@ -141,21 +137,12 @@ table(groups)[1]
 df.long = df %>%
   dplyr::select(lakeinv, depth) %>%
   pivot_longer(lakeinv) %>%
-<<<<<<< HEAD
   mutate(name = fct_relevel(name,  'Semi-bad','Good','Bad'))
 
 # Cluster lables
 cluster.labels = NA
 
 order = match(lakeinv, c('Semi-bad','Good','Bad'))
-=======
-  mutate(name = fct_relevel(name,'Linear','Constant','Anoxia'))#,'Convex'))#'Linear','Constant','Convex'))
-
-# Cluster lables
-cluster.labels = NA
-# order = match(lakeinv, c('Hypoxic','Linear','Convex')) # Order in the same way as
-order = match(lakeinv, c('Linear','Constant','Anoxia'))#,'Convex'))#c('Linear','Constant','Convex')) # Order in the same way as
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
 for (i in 1:5){
   j = order[i]
   cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -173,7 +160,7 @@ g.cluster = ggplot(df.long) +
 
 # Grid Plot
 df.grd <-  setNames(data.frame(matrix(ncol = 1+length(seq(1979, 2018,1)), nrow = 207)), c('lake',
-                                                                                        as.character(seq(1979,2018,1))))
+                                                                                          as.character(seq(1979,2018,1))))
 df.grd$lake <- lake.list
 
 for (i in 1:4) {
@@ -191,13 +178,8 @@ for (i in 1:4) {
 m.df.grd <- reshape2::melt(df.grd, id.vars = 'lake')
 
 g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
-<<<<<<< HEAD
   scale_fill_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
                     breaks = c('Semi-bad','Good','Bad')) +
-=======
-  scale_fill_manual(values = c('gold','lightblue1','red4','green'), name = 'Cluster',
-                    breaks = c('Linear','Constant','Anoxia')) + #c('Linear','Constant','Convex')) +
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
   geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
   labs(x = 'Time', y = '') +
   theme_minimal(base_size = 8) +
@@ -236,7 +218,6 @@ types$elev = log10(morph$elev[match(types$lake,morph$lake)])
 
 # 187 lakes
 ## 75% of the sample size
-<<<<<<< HEAD
 # troph_old <- read_csv('analysis/figures/ts_oxygen_join.csv')
 # troph <- read_csv('analysis/figures/complete_lake_predictions.csv')
 troph <- read_csv("lstm/ensemble_preds.csv")
@@ -338,71 +319,16 @@ normalize <- function(x) {
 smp_size_1 <- floor(0.75 * nrow(data[which(data$ct == 'Bad'),]))
 smp_size_2 <- floor(0.75 * nrow(data[which(data$ct == 'Good'),]))
 # smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'Anoxia'),]))
-=======
-troph_old <- read_csv('analysis/figures/ts_oxygen_join.csv')
-troph <- read_csv('analysis/figures/complete_lake_predictions.csv')
-link <- read_csv('analysis/figures/nhd_hydrolakes_nla.csv')
-
-types$site_id <- link$Hylak_id[match(types$lake,link$site_id[match(troph$Hylak_id, link$Hylak_id)])]
-
-types$eutro <- troph$`prob_eu/mixo`[match(types$site_id,troph$Hylak_id)]
-types$dys <- troph$prob_dys[match(types$lake,troph$site_id)]
-types$oligo <- troph$prob_oligo[match(types$lake,troph$site_id)]
-
-# types$Blue <- troph$Blue[match(types$lake,troph$site_id)]
-# types$Green <- troph$Green[match(types$lake,troph$site_id)]
-# types$Nir <- troph$Nir[match(types$lake,troph$site_id)]
-# types$Red <- troph$Red[match(types$lake,troph$site_id)]
-
-# residence times
-library(sf)
-hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES/HydroLAKES_points_v10_shp/HydroLAKES_points_v10.shp")
-
-types$RT <- hydLakes$Res_time[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
-types$WshA <- hydLakes$Wshd_area[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
-types$dep_avg <- hydLakes$Depth_avg[match(troph$Hylak_id[match(types$lake,troph$site_id)], hydLakes$Hylak_id)]
-
-col <- read_csv('analysis/figures/limnosat_redux_raw_rel_reflectance_ptl_color.csv')
-# types$NDVI <- (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] - col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)]) /
-#   (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] + col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)])
-
-write_csv(x = types, file = 'analysis/figures/model_june22.csv', col_names = T)
-
-write_csv(x = data.frame('nhdhr' = types$lake), file = 'analysis/figures/my_nhdhr.csv', col_names = T)
-
-data = as.data.frame(na.omit(types))
-
-normalize <- function(x) {
-  num <- x - min(x)
-  denom <- max(x) - min(x)
-  return (num/denom)
-}
-
-
-# smp_size <- floor(0.75 * nrow(data))
-smp_size_1 <- floor(0.75 * nrow(data[which(data$ct == 'Constant'),]))
-smp_size_2 <- floor(0.75 * nrow(data[which(data$ct == 'Linear'),]))
-smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'Anoxia'),]))
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
 
 ## set the seed to make your partition reproducible
 set.seed(123)
 # train_ind <- sample(seq_len(nrow(data)), size = smp_size)
-<<<<<<< HEAD
 train_ind_1 <- sample(seq_len(nrow(data[which(data$ct == 'Bad'),])), size = smp_size_1)
 train_ind_2 <- sample(seq_len(nrow(data[which(data$ct == 'Good'),])), size = smp_size_2)
 train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'Anoxia'),])), size = smp_size_3)
 
 train <- data[c(train_ind_1,train_ind_2), ]
 test <- data[-c(train_ind_1,train_ind_2), ]
-=======
-train_ind_1 <- sample(seq_len(nrow(data[which(data$ct == 'Constant'),])), size = smp_size_1)
-train_ind_2 <- sample(seq_len(nrow(data[which(data$ct == 'Linear'),])), size = smp_size_2)
-train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'Anoxia'),])), size = smp_size_3)
-
-train <- data[c(train_ind_1,train_ind_2, train_ind_3), ]
-test <- data[-c(train_ind_1,train_ind_2, train_ind_3), ]
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
 
 
 library(data.table)
@@ -444,13 +370,13 @@ glmulti(ct   ~ lndu + depth + area + elev + eutro + dys + oligo + RT + WshA + de
 
 # lndu + developed + forest + cultivated + wetlands + depth + area + elev + eutro + dys + oligo + RT + WshA + dep_avg
 test_h <- glmulti(ct   ~lndu + developed + forest + cultivated + wetlands + depth + area + elev + eutro + dys + oligo + RT + WshA + dep_avg,
-        data   = data,
-        # crit   = aicc,       # AICC corrected AIC for small samples
-        level  = 1,          # 2 with interactions, 1 without
-        method = "h",        # "d", or "h", or "g"
-        # family = gaussian,
-        fitfunction = multinom,   # Type of model (LM, GLM etc.)
-        confsetsize = 100)   # Keep 100 best models
+                  data   = data,
+                  # crit   = aicc,       # AICC corrected AIC for small samples
+                  level  = 1,          # 2 with interactions, 1 without
+                  method = "h",        # "d", or "h", or "g"
+                  # family = gaussian,
+                  fitfunction = multinom,   # Type of model (LM, GLM etc.)
+                  confsetsize = 100)   # Keep 100 best models
 
 test_h <- glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + depth + area + elev +
                     eutro + dys + oligo + log10(RT) + log10(WshA) + log10(dep_avg) + trophic,# + trophic,
@@ -512,36 +438,11 @@ z <- summary(model)$coefficients/summary(model)$standard.errors
 p <- (1 - pnorm(abs(z), 0, 1)) * 2
 print(p)
 
-<<<<<<< HEAD
 # https://datasciencebeginners.com/2018/12/20/multinomial-logistic-regression-using-r/
 # https://stats.oarc.ucla.edu/r/dae/multinomial-logistic-regression/
 ## extracting coefficients from the model and exponentiate
 exp(coef(model))
 
-=======
-model <- multinom(ct ~ dys * lndu * depth * eutro * oligo * area/WshA + RT, data = train)
-model <- multinom(ct ~ normalize(area)/normalize(WshA)  * lndu * normalize(RT) + eutro * oligo * dys + normalize(depth) , data = train)
-
-
-# model <- multinom(ct ~ dys * eutro * oligo + lndu + depth * area/WshA * RT, data = train)
-
-# model <- nnet(ct ~ dys + lndu + depth  + eutro + oligo + area + RT + elev +
-#                 Red * Green * Blue * Nir, data = train, size = 10)
-
-# model <- multinom(ct ~  developed *forest * cultivated * wetlands + depth * area + eutro * oligo * dys + Red * Green * Blue * Nir + RT + elev, data = train)
-
-summary(model)
-summary(model)$AIC
-z <- summary(model)$coefficients/summary(model)$standard.errors
-p <- (1 - pnorm(abs(z), 0, 1)) * 2
-print(p)
-
-# https://datasciencebeginners.com/2018/12/20/multinomial-logistic-regression-using-r/
-# https://stats.oarc.ucla.edu/r/dae/multinomial-logistic-regression/
-## extracting coefficients from the model and exponentiate
-exp(coef(model))
-
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
 head(probability.table <- fitted(model))
 
 # Predicting the values for train dataset
@@ -581,12 +482,12 @@ truerel <-data.frame(var = test$ct, value = 1) %>%
   pivot_wider(names_from = var, values_from = value) %>%
   replace_na(list(Linear = 0,
                   Constant = 0,
-                #  Convex = 0,
+                  #  Convex = 0,
                   Anoxia = 0)) %>%
   select(-rowname) %>%
   rename(Linear_true = Linear,
          Constant_true = Constant,
-        # Convex_true = Convex,
+         # Convex_true = Convex,
          Anoxia_true = Anoxia) %>%
   data.frame() %>%
   bind_cols(., prediction %>%
@@ -594,7 +495,7 @@ truerel <-data.frame(var = test$ct, value = 1) %>%
               select(Linear, Constant, Anoxia) %>%
               rename(Linear_pred_1 = Linear,
                      Constant_pred_1 = Constant,
-                  #   Convex_pred_1 = Convex,
+                     #   Convex_pred_1 = Convex,
                      Anoxia_pred_1 = Anoxia))
 
 roc_object <- multi_roc(data.frame(truerel))
