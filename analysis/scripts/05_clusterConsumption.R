@@ -103,9 +103,9 @@
         distMatrix <- dist(anoxDym2, method= 'euclidean')
         hc <- hclust(distMatrix, method='ward.D')
         plot(hc, main='')
-        groups <- cutree(hc, k=2) #k=5) # cut tree into 7 clusters
+        groups <- cutree(hc, k=3) #k=5) # cut tree into 7 clusters
 
-        rect.hclust(hc, k=2,border='red')#k=7
+        rect.hclust(hc, k=3,border='red')#k=7
         indMycl = unique(groups)
         dataGroups = list()
         idz = as.numeric(table(groups))
@@ -129,7 +129,7 @@
         }
 
         df = as.data.frame(dataGroups)
-        names(df) = c('Bad','Good')#c('Semi-bad','Good','Bad')#,'Convex')
+        names(df) = c('Semi-bad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
 
         nameVec = names(df)
         df$depth = seq(1,nrow(df))
@@ -142,12 +142,12 @@
         df.long = df %>%
           dplyr::select(lakeinv, depth) %>%
           pivot_longer(lakeinv) %>%
-          mutate(name = fct_relevel(name,  'Bad','Good'))
+          mutate(name = fct_relevel(name,  'Semi-bad','Good','Bad'))
 
         # Cluster lables
         cluster.labels = NA
 
-        order = match(lakeinv, c('Bad','Good'))
+        order = match(lakeinv, c('Semi-bad','Good','Bad'))
         for (i in 1:3){
           j = order[i]
           cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -184,7 +184,7 @@
 
         g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
           scale_fill_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
-                            breaks = c('Bad','Good')) +
+                            breaks = c('Semi-bad','Good','Bad')) +
           geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
           labs(x = 'Time', y = '') +
           theme_minimal(base_size = 8) +
