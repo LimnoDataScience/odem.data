@@ -7,7 +7,6 @@ inst/extdata/adfdf197-9f62-4650-8866-676709b89aee_(Pepin)/oxymodel.png
 analysis/scripts/password.txt
 inst/extdata/120018046_(White_Bear)/oxymodel.png
 inst/extdata/HydroLAKES
-<<<<<<< HEAD
+inst/extdata/HydroLAKES_polys_v10_shp/
 lstm/ensemble_preds.csv
-=======
->>>>>>> 6593fa37ff1909ecb3349ad67cd5794857e24196
+
