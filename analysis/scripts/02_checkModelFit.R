@@ -9,6 +9,9 @@ all.nml_short2 <- sub(".nml.*", "", all.nml_short)
 library(parallel)
 library(MASS)
 
+if (!exists("password")){
+  password <- as.character(read.delim('analysis/scripts/password.txt', header = FALSE, stringsAsFactor = FALSE))
+}
 
 all.dne <- list.files('analysis/')
 all.dne_all <- all.dne[grepl('nhdhr', all.dne)]
@@ -224,7 +227,7 @@ con <- dbConnect(drv,
                  host = '144.92.62.199',
                  port = 5432,
                  user = "postgres",
-                 password = 'SparklingRusty')
+                 password = password)
 #################################################################
 
 
