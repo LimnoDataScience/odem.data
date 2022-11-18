@@ -2,6 +2,11 @@
 
         setwd('~/Documents/DSI/odem.data/')
 
+
+        if (!exists("password")){
+          password <- as.character(read.delim('analysis/scripts/password.txt', header = FALSE, stringsAsFactor = FALSE))
+        }
+
         all.nml <- list.files('inst/extdata/pball_nml/pball_nml_files/')
         all.nml_short <- sub(".*pball_", "", all.nml)
         all.nml_short2 <- sub(".nml.*", "", all.nml_short)
@@ -98,9 +103,9 @@
         distMatrix <- dist(anoxDym2, method= 'euclidean')
         hc <- hclust(distMatrix, method='ward.D')
         plot(hc, main='')
-        groups <- cutree(hc, k=3) #k=5) # cut tree into 7 clusters
+        groups <- cutree(hc, k=2) #k=5) # cut tree into 7 clusters
 
-        rect.hclust(hc, k=3,border='red')#k=7
+        rect.hclust(hc, k=2,border='red')#k=7
         indMycl = unique(groups)
         dataGroups = list()
         idz = as.numeric(table(groups))
@@ -124,7 +129,7 @@
         }
 
         df = as.data.frame(dataGroups)
-        names(df) = c('SemiBad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
+        names(df) = c('Bad','Good')#c('Semi-bad','Good','Bad')#,'Convex')
 
         nameVec = names(df)
         df$depth = seq(1,nrow(df))
@@ -137,12 +142,12 @@
         df.long = df %>%
           dplyr::select(lakeinv, depth) %>%
           pivot_longer(lakeinv) %>%
-          mutate(name = fct_relevel(name,  'SemiBad','Good','Bad'))
+          mutate(name = fct_relevel(name,  'Bad','Good'))
 
         # Cluster lables
         cluster.labels = NA
 
-        order = match(lakeinv, c('SemiBad','Good','Bad'))
+        order = match(lakeinv, c('Bad','Good'))
         for (i in 1:3){
           j = order[i]
           cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -179,7 +184,7 @@
 
         g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
           scale_fill_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
-                            breaks = c('SemiBad','Good','Bad')) +
+                            breaks = c('Bad','Good')) +
           geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
           labs(x = 'Time', y = '') +
           theme_minimal(base_size = 8) +
@@ -210,10 +215,10 @@
         types$lndu <- factor(landuse$LANDUSE[match(types$lake,landuse$nhdr_id)])
         types$ct = factor(types$ct)
 
-        types$developed <- landuse$developed[match(types$lake,landuse$nhdr_id)]
-        types$forest <- landuse$forest[match(types$lake,landuse$nhdr_id)]
-        types$cultivated <- landuse$cultivated[match(types$lake,landuse$nhdr_id)]
-        types$wetlands <- landuse$wetlands[match(types$lake,landuse$nhdr_id)]
+        types$developed <- landuse$developed[match(types$lake,landuse$nhdr_id)]/100
+        types$forest <- landuse$forest[match(types$lake,landuse$nhdr_id)]/100
+        types$cultivated <- landuse$cultivated[match(types$lake,landuse$nhdr_id)]/100
+        types$wetlands <- landuse$wetlands[match(types$lake,landuse$nhdr_id)]/100
 
         morph$depthf <- cut(morph$depth, c(0, 5, 10, 15, 20, 25, 30, 35, 40, 50, 80, 250, Inf))
         morph$areaf <- cut(morph$area, c(0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e9))
@@ -221,10 +226,10 @@
         types$depthf = morph$depthf[match(types$lake,morph$lake)]
         types$areaf = morph$areaf[match(types$lake,morph$lake)]
 
-        types$depth = log10(morph$depth[match(types$lake,morph$lake)])
-        types$area = log10(morph$area[match(types$lake,morph$lake)])
+        types$depth = (morph$depth[match(types$lake,morph$lake)])
+        types$area = (morph$area[match(types$lake,morph$lake)])
 
-        types$elev = log10(morph$elev[match(types$lake,morph$lake)])
+        types$elev = (morph$elev[match(types$lake,morph$lake)])
 
         # 187 lakes
         ## 75% of the sample size
@@ -254,9 +259,9 @@
         library(sf)
         hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES/HydroLAKES_points_v10_shp/HydroLAKES_points_v10.shp")
 
-        types$RT <- hydLakes$Res_time[match(troph$Hylak_id[match(types$Hylak_id,troph$Hylak_id)], hydLakes$Hylak_id)]
-        types$WshA <- hydLakes$Wshd_area[match(troph$Hylak_id[match(types$Hylak_id,troph$Hylak_id)], hydLakes$Hylak_id)]
-        types$dep_avg <- hydLakes$Depth_avg[match(troph$Hylak_id[match(types$Hylak_id,troph$Hylak_id)], hydLakes$Hylak_id)]
+        types$RT <- (hydLakes$Res_time[match(troph$Hylak_id[match(types$Hylak_id,troph$Hylak_id)], hydLakes$Hylak_id)])
+        types$WshA <- (hydLakes$Wshd_area[match(troph$Hylak_id[match(types$Hylak_id,troph$Hylak_id)], hydLakes$Hylak_id)])
+        types$dep_avg <- (hydLakes$Depth_avg[match(troph$Hylak_id[match(types$Hylak_id,troph$Hylak_id)], hydLakes$Hylak_id)])
 
         col <- read_csv('analysis/figures/limnosat_redux_raw_rel_reflectance_ptl_color.csv')
         # types$NDVI <- (col$Nir_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)] - col$Red_raw[match(troph$Hylak_id[match(types$lake,troph$site_id)], col$Hylak_id)]) /
@@ -280,7 +285,7 @@
                          host = '144.92.62.199',
                          port = 5432,
                          user = "postgres",
-                         password = 'SparklingRusty')
+                         password = password)
         ###try and make map of all lakes from Jordan's data
         lake_metrics <- dbGetQuery(con,'select * from data.lake_metrics', stringsAsFactors = FALSE)
         lake_metrics_reduced <- lake_metrics[!is.na(match(lake_metrics$nhd_lake_id, data$lake)),]
@@ -290,9 +295,9 @@
         data$latitude <- lake_metrics$latitude[!is.na(match(lake_metrics$nhd_lake_id, data$lake))]
 
         data <- data %>%
-          mutate(trophic = case_when(eutro > oligo & eutro > dys & eutro >= 0.75 ~ 'eutro',
-                                     oligo > eutro & oligo > dys & oligo  >= 0.75 ~ 'oligo',
-                                     dys > eutro & dys > oligo & dys  >= 0.75  ~ 'dys')) %>%
+          mutate(trophic = case_when(eutro > oligo & eutro > dys  ~ 'eutro', # & eutro >= 0.75
+                                     oligo > eutro & oligo > dys ~ 'oligo', #  & oligo  >= 0.75
+                                     dys > eutro & dys > oligo   ~ 'dys')) %>% #& dys  >= 0.75
           mutate(trophic = ifelse(is.na(trophic), 'gray', trophic))
 
         write_csv(x = types, file = 'analysis/figures/rawdata_nov18.csv', col_names = T)
