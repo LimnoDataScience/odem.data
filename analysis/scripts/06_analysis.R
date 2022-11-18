@@ -111,6 +111,7 @@ en_coord_cat = as.data.frame(scores(en, "factors")) * ordiArrowMul(en)
 ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
   geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5)
 
+# permanova
 adonis2(as.numeric(as.factor(df_data$ct)) ~ cultivated + depth + oligo, data = df_data,
         permutations = 999, method = "euclidean", by = "margin")
 
