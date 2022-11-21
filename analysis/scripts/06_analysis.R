@@ -14,6 +14,8 @@ library(dtw)
 library(zoo)
 library(patchwork)
 library(rnaturalearth)
+library(sf)
+library(ggextra)
 # library(mapview)
 library(data.table)
 library(mlr)
@@ -35,14 +37,30 @@ us <- map_data("state")
 hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
 data$RT <- hydLakes$Res_time[match(data$Hylak_id, hydLakes$Hylak_id)]
 
-gmap <- ggplot() +
+lake_shapes <- st_read("inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
+
+idy <- (match(data$Hylak_id,lake_shapes$Hylak_id))
+lakes_df <- lake_shapes[idy,]
+lakes_df$hypoDO <- data$ct
+lakes_df$lndu <- data$lndu
+
+ggplot(lakes_df, aes(fill = hypoDO)) +
+  theme_minimal() +
+  geom_sf() +
+  scale_fill_brewer(type = "qual")
+
+gmap <- ggplot(lakes_df, aes(fill = hypoDO,
+                             col = hypoDO)) +
+  geom_sf() +
   geom_polygon(data = us, aes(x=long, y=lat,
                               group = group), color = "black", fill = 'white',
                size =.5, alpha = 0) +
-  geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
-  coord_sf(xlim = c(-98, -84), ylim = c(42, 50), expand = FALSE) +
+  # geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
+  coord_sf(xlim = c(-97.3, -86), ylim = c(42.6, 48.7), expand = FALSE) +
   xlab('Longitude') + ylab('Latitude') +
-  theme_light(); gmap
+  theme_minimal(); gmap
+
+
 ggsave(file = 'analysis/figures/map.png', gmap, dpi = 600, width =15, height = 10)
 
 # check Lake Mendota
