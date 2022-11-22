@@ -15,7 +15,8 @@ library(zoo)
 library(patchwork)
 library(rnaturalearth)
 library(sf)
-library(ggextra)
+library(ggExtra)
+library(ggmosaic)
 # library(mapview)
 library(data.table)
 library(mlr)
@@ -35,46 +36,110 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 us <- map_data("state")
 
 hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
-data$RT <- hydLakes$Res_time[match(data$Hylak_id, hydLakes$Hylak_id)]
+# data$RT <- hydLakes$Res_time[match(data$Hylak_id, hydLakes$Hylak_id)]
 
 lake_shapes <- st_read("inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
 
 idy <- (match(data$Hylak_id,lake_shapes$Hylak_id))
 lakes_df <- lake_shapes[idy,]
-lakes_df$hypoDO <- data$ct
+lakes_df$ct <- data$ct
 lakes_df$lndu <- data$lndu
 
-ggplot(lakes_df, aes(fill = hypoDO)) +
+ggplot(lakes_df, aes(fill = ct)) +
   theme_minimal() +
   geom_sf() +
   scale_fill_brewer(type = "qual")
 
-gmap <- ggplot(lakes_df, aes(fill = hypoDO,
-                             col = hypoDO)) +
+gmap <- ggplot(lakes_df, aes(fill = ct)) +
   geom_sf() +
   geom_polygon(data = us, aes(x=long, y=lat,
                               group = group), color = "black", fill = 'white',
                size =.5, alpha = 0) +
+  scale_fill_manual(values= c('red4', 'lightblue1')) +
   # geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
   coord_sf(xlim = c(-97.3, -86), ylim = c(42.6, 48.7), expand = FALSE) +
   xlab('Longitude') + ylab('Latitude') +
   theme_minimal(); gmap
 
+## get model performance
+all.dne <- list.files('analysis/')
+all.dne_all <- all.dne[grepl('nhdhr', all.dne)]
 
-ggsave(file = 'analysis/figures/map.png', gmap, dpi = 600, width =15, height = 10)
+info.df <- c()
+for (idx in all.dne_all){
+  if (file.exists(paste0('analysis/',idx,'/lakeinfo.txt'))){
+    info.df <- rbind(info.df,read.csv(paste0('analysis/',idx,'/lakeinfo.txt')))
+  }
+}
+
+data$fit = info.df$fit_tall[na.omit(match(data$lake,info.df$lake_id))]
+
+g.rmse.depth <- ggplot(data, aes(fit, depth, col = trophic)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_color_manual(values= c('darkgreen', 'gold')) +
+  xlab("RMSE (g/m3)") + ylab('Depth (m)') +
+  theme_minimal(); g.rmse.depth
+# g.rmse.depth <- ggMarginal(g.rmse.depth)
+
+g.wsh.area <- ggplot(data, aes(log10(WshA), log10(area), col = trophic)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_color_manual(values= c('darkgreen', 'gold')) +
+  xlab("Watershed area (log10 m2)") + ylab('Lake area (log10 m2)') +
+  theme_minimal(); g.wsh.area
+# g.wsh.area <- ggMarginal(g.wsh.area)
+
+g.mos <- ggplot(data) +
+  geom_mosaic( aes( x = product(ct, trophic), fill = ct)) +
+  xlab("RMSE (g/m3)") + ylab('Depth (m)') +
+  scale_fill_manual(values= c('red4', 'lightblue1')) +
+  theme_minimal()+
+  theme(legend.position = 'none'); g.mos
+
+g.lndu.wsh <- ggplot(data, aes(lndu, log10(WshA))) +
+  geom_boxplot() +
+  xlab("Land use") + ylab('Watershed area (log10 m2)') +
+  geom_jitter(color = 'black', size = 0.4, alpha = 0.9) +
+  theme_minimal(); g.lndu.wsh
+
+g.density <- ggplot(data, aes(depth, fill = ct)) +
+  geom_density(alpha = 0.5) +
+  xlab("Depth (m)") + ylab('Density (-)') +
+  scale_fill_manual(values= c('red4', 'lightblue1')) +
+  theme_minimal() +
+  theme(legend.position = 'none'); g.density
+
+g <- ggplot(data, aes(depth, fill = trophic)) +
+  geom_density(alpha = 0.25) +
+  xlab("Depth (m)") + ylab('Density (-)') +
+  theme_minimal(); g
+
+fig1 <- gmap / (g.rmse.depth + g.density + g.mos + g.wsh.area) + plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = 'A')
+
+ggsave(file = 'analysis/figures/Figure2.png', fig1, dpi = 600, width =13, height = 15)
 
 # check Lake Mendota
 data[which(data$lake == 'nhdhr_143249470'),]
 
-df_data = data[,c("ct", "developed", "forest", "cultivated", "wetlands",
+df_data = data[,c("ct", "developed", "forest", "cultivated", "wetlands", "water", "barren",
+                  "shrubland", "herbaceous",
                   "depth", "area", "elev", "eutro", "dys", "oligo", "RT", "WshA",
                   "dep_avg", "trophic")]
-df_data_num = df_data[, c("developed", "forest", "cultivated", "wetlands",
-                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT", "WshA",
+df_data_num = df_data[, c("developed", "forest", "cultivated", "wetlands", "water", "barren",
+                          "shrubland", "herbaceous",
+                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT",
                   "dep_avg")]
+
+df_data_num[, c("developed", "forest", "cultivated", "wetlands", "water", "barren",
+                "shrubland", "herbaceous")] = df_data_num[, c("developed", "forest", "cultivated", "wetlands", "water", "barren",
+                                                              "shrubland", "herbaceous")] * as.matrix(df_data[, c("WshA")])
+
+
 df_data_num  = apply(df_data_num, 2, function(x)  scale(x))
 
-df_data = cbind(df_data_num, data[,c("ct","trophic")])
+df_data = cbind(df_data_num, data[,c("ct","trophic","lndu")])
 
 
 normalize <- function(x) {
@@ -84,14 +149,14 @@ normalize <- function(x) {
 }
 
 
-smp_size_1 <- floor(0.75 * nrow(df_data[which(df_data$ct == 'Bad'),]))
-smp_size_2 <- floor(0.75 * nrow(df_data[which(df_data$ct == 'Good'),]))
+smp_size_1 <- floor(0.75 * nrow(df_data[which(df_data$ct == 'Heavy consumption'),]))
+smp_size_2 <- floor(0.75 * nrow(df_data[which(df_data$ct == 'Low consumption'),]))
 # smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'SemiBad'),]))
 
 ## set the seed to make your partition reproducible
 set.seed(123)
-train_ind_1 <- sample(seq_len(nrow(df_data[which(df_data$ct == 'Bad'),])), size = smp_size_1)
-train_ind_2 <- sample(seq_len(nrow(df_data[which(df_data$ct == 'Good'),])), size = smp_size_2)
+train_ind_1 <- sample(seq_len(nrow(df_data[which(df_data$ct == 'Heavy consumption'),])), size = smp_size_1)
+train_ind_2 <- sample(seq_len(nrow(df_data[which(df_data$ct == 'Low consumption'),])), size = smp_size_2)
 # train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'SemiBad'),])), size = smp_size_3)
 
 train <- df_data[c(train_ind_1,train_ind_2), ]
@@ -103,9 +168,12 @@ test <- df_data[-c(train_ind_1,train_ind_2), ]
 ext = df_data[, c("developed", "forest", "cultivated", "wetlands",
                   "depth", "area", "RT", "WshA",
                   "dep_avg", "eutro", "oligo")]
-ext = df_data[, c('developed' , 'cultivated' , 'depth' , 'oligo' ,'eutro' , 'RT')]
+ext = df_data[, c("developed", "forest", "cultivated", "wetlands", "water", "barren",
+                  "shrubland", "herbaceous",
+                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT",
+                  "dep_avg")]
 int = df_data[, c("ct")]
-ext$trophic <- as.numeric(as.factor(ext$trophic))
+ext$trophic <- as.numeric(as.factor(df_data$trophic))
 
 ext_com = as.matrix(ext)
 
@@ -213,22 +281,35 @@ glmulti(ct   ~ developed + forest + cultivated  + depth + area +  eutro + dys + 
         fitfunction = multinom,   # Type of model (LM, GLM etc.)
         confsetsize = 100)   # Keep 100 best models
 
-test_h <- glmulti(as.factor(ct)   ~ developed + forest + cultivated + wetlands + depth + area + elev +
+test_h <- glmulti(as.factor(ct)   ~ as.factor(lndu) + depth + area  +
                     eutro + dys + oligo + (RT) + (WshA) + (dep_avg) + as.factor(trophic),# + trophic,
                   data   = df_data,
-                  # crit   = aicc,       # AICC corrected AIC for small samples
+                  crit   = aicc,       # AICC corrected AIC for small samples
                   level  = 1,          # 2 with interactions, 1 without
                   method = "h",        # "d", or "h", or "g"
                   family = binomial,
                   fitfunction = glm,   # Type of model (LM, GLM etc.)
                   confsetsize = 100)   # Keep 100 best models
 
-test_h <- glmulti(as.factor(ct)   ~ developed  + cultivated  + depth  +
-                    eutro + dys + oligo + (RT)  ,# + trophic,
+test_h <- glmulti(as.factor(ct)   ~ developed + forest + cultivated + wetlands + water + barren +
+                    shrubland + herbaceous +
+                    depth + area  +
+                    eutro + dys + oligo + (RT) + (dep_avg) + as.factor(trophic),# + trophic,
                   data   = df_data,
-                  # crit   = aicc,       # AICC corrected AIC for small samples
+                  crit   = aicc,       # AICC corrected AIC for small samples
                   level  = 1,          # 2 with interactions, 1 without
                   method = "h",        # "d", or "h", or "g"
+                  family = binomial,
+                  fitfunction = glm,   # Type of model (LM, GLM etc.)
+                  confsetsize = 100)   # Keep 100 best models
+
+
+
+test_g <- glmulti(as.factor(ct)   ~ developed + forest + cultivated + depth + oligo + WshA ,# + trophic,
+                  data   = df_data,
+                  # crit   = aicc,       # AICC corrected AIC for small samples
+                  level  = 2,          # 2 with interactions, 1 without
+                  method = "g",        # "d", or "h", or "g"
                   family = binomial,
                   fitfunction = glm,   # Type of model (LM, GLM etc.)
                   confsetsize = 100)   # Keep 100 best models
@@ -236,17 +317,15 @@ test_h <- glmulti(as.factor(ct)   ~ developed  + cultivated  + depth  +
 optimal_model_glmulti_exhaustive <- test_h@objects[[1]]
 print(optimal_model_glmulti_exhaustive)
 
-
-
-png(file='analysis/figures/effects.png', width = 25, height = 20, units = "cm",res = 600)
-plot(effects::allEffects(test_h@objects[[6]]),
+png(file='analysis/figures/Figure3.png', width = 25, height = 20, units = "cm",res = 600)
+plot(effects::allEffects(test_h@objects[[1]]),
      lines = list(multiline = T),
      confint = list(style = "auto"))
 dev.off()
 
 plot(test_h)
 
-weightable(test_h)[1:6,] %>%
+weightable(test_h)[1:10,] %>%
   regulartable() %>%       # beautifying tables
   autofit()
 

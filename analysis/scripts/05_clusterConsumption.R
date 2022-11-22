@@ -103,9 +103,9 @@
         distMatrix <- dist(anoxDym2, method= 'euclidean')
         hc <- hclust(distMatrix, method='ward.D')
         plot(hc, main='')
-        groups <- cutree(hc, k=3) #k=5) # cut tree into 7 clusters
+        groups <- cutree(hc, k=2) #k=5) # cut tree into 7 clusters
 
-        rect.hclust(hc, k=3,border='red')#k=7
+        rect.hclust(hc, k=2,border='red')#k=7
         indMycl = unique(groups)
         dataGroups = list()
         idz = as.numeric(table(groups))
@@ -129,7 +129,7 @@
         }
 
         df = as.data.frame(dataGroups)
-        names(df) = c('Semi-bad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
+        names(df) = c("Heavy consumption", "Low consumption")#c('Semi-bad','Good','Bad')#c('Semi-bad','Good','Bad')#,'Convex')
 
         nameVec = names(df)
         df$depth = seq(1,nrow(df))
@@ -142,12 +142,12 @@
         df.long = df %>%
           dplyr::select(lakeinv, depth) %>%
           pivot_longer(lakeinv) %>%
-          mutate(name = fct_relevel(name,  'Semi-bad','Good','Bad'))
+          mutate(name = fct_relevel(name,  "Heavy consumption", "Low consumption"))
 
         # Cluster lables
         cluster.labels = NA
 
-        order = match(lakeinv, c('Semi-bad','Good','Bad'))
+        order = match(lakeinv, c("Heavy consumption", "Low consumption"))
         for (i in 1:3){
           j = order[i]
           cluster.labels[j] = paste0(lakeinv[i],' (n = ',table(groups)[i],')')
@@ -156,7 +156,7 @@
         # Cluster plotting
         g.cluster = ggplot(df.long) +
           geom_line(aes(depth, value, color = name)) +
-          scale_color_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
+          scale_color_manual(values = c('red4','lightblue1','gold','red1','red4'), name = 'Cluster',
                              labels = cluster.labels) +
           xlab('Stratification duration [%]') +
           ylab('Ratio of Hypolimnion to \nSaturation DO [-]') +
@@ -183,8 +183,8 @@
         m.df.grd <- reshape2::melt(df.grd, id.vars = 'lake')
 
         g1 <- ggplot(m.df.grd, aes(x = variable, y = lake, fill = as.factor(value))) +
-          scale_fill_manual(values = c('red4','gold','lightblue1','red1','red4'), name = 'Cluster',
-                            breaks = c('Semi-bad','Good','Bad')) +
+          scale_fill_manual(values = c('red4','lightblue1','gold','red1','red4'), name = 'Cluster',
+                            breaks = c("Heavy consumption", "Low consumption")) +
           geom_tile(color = 'black', width = 0.8, height = 0.8, size = 0.5) +
           labs(x = 'Time', y = '') +
           theme_minimal(base_size = 8) +
@@ -219,6 +219,10 @@
         types$forest <- landuse$forest[match(types$lake,landuse$nhdr_id)]/100
         types$cultivated <- landuse$cultivated[match(types$lake,landuse$nhdr_id)]/100
         types$wetlands <- landuse$wetlands[match(types$lake,landuse$nhdr_id)]/100
+        types$water <- landuse$water[match(types$lake,landuse$nhdr_id)]/100
+        types$barren <- landuse$barren[match(types$lake,landuse$nhdr_id)]/100
+        types$shrubland <- landuse$shrubland[match(types$lake,landuse$nhdr_id)]/100
+        types$herbaceous <- landuse$herbaceous[match(types$lake,landuse$nhdr_id)]/100
 
         morph$depthf <- cut(morph$depth, c(0, 5, 10, 15, 20, 25, 30, 35, 40, 50, 80, 250, Inf))
         morph$areaf <- cut(morph$area, c(0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e9))
