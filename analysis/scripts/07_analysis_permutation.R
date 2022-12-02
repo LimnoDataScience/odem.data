@@ -149,104 +149,45 @@ models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
 
 model_averaged <- model.avg(object = models_exhaust@objects[c(1:24)])
 
-
-
-png(file='analysis/figures/Figure3.png', width = 25, height = 20, units = "cm",res = 600)
-plot(effects::allEffects(test_h@objects[[1:2]]),
-     lines = list(multiline = T),
-     confint = list(style = "auto"))
-dev.off()
-
-plot(test_h)
-
-weightable(test_h)[1:10,] %>%
-  regulartable() %>%       # beautifying tables
-  autofit()
-
-plot(test_h, type = "s")
-
-best_model <- test_h@objects[[2]]
-
-car::Anova(best_model)
-
-
-model <- multinom(ct ~ developed  + cultivated  + depth  +
-                    eutro + dys + oligo + (RT) , data = train)
-
-model1 <- multinom(ct ~  developed + depth + eutro, data = df_data)
-model2 <- multinom(ct ~  developed + depth + oligo, data = df_data)
-model3 <- multinom(ct ~  developed + cultivated + depth + eutro, data = df_data)
-model4 <- multinom(ct ~  developed + cultivated  + depth + eutro, data = df_data)
-model5 <- multinom(ct ~  developed + cultivated + depth, data = df_data)
-model6 <- multinom(ct ~  developed + depth + eutro + RT, data = df_data)
-
-pscl::pR2(model1)["McFadden"]
-pscl::pR2(model2)["McFadden"]
-pscl::pR2(model3)["McFadden"]
-pscl::pR2(model4)["McFadden"]
-pscl::pR2(model5)["McFadden"]
-pscl::pR2(model6)["McFadden"]
-
-summary(model)
-summary(model)$AIC
-z <- summary(model)$coefficients/summary(model)$standard.errors
-p <- (1 - pnorm(abs(z), 0, 1)) * 2
-print(p)
-
-# https://datasciencebeginners.com/2018/12/20/multinomial-logistic-regression-using-r/
-# https://stats.oarc.ucla.edu/r/dae/multinomial-logistic-regression/
-## extracting coefficients from the model and exponentiate
-exp(coef(model))
-
-head(probability.table <- fitted(model))
-
-# Predicting the values for train dataset
-train$precticed <- predict(model_averaged, newdata = train, "class")
-
-# Building classification table
-ctable <- table(train$ct, train$precticed)
-
-# Calculating accuracy - sum of diagonal elements divided by total obs
-round((sum(diag(ctable))/sum(ctable))*100,2)
-
-# Predicting the values for train dataset
-test$precticed <- predict(model, newdata = test, "class")
-
-# Building classification table
-ctable <- table(test$ct, test$precticed)
-
-# Calculating accuracy - sum of diagonal elements divided by total obs
-round((sum(diag(ctable))/sum(ctable))*100,2)
-
-pscl::pR2(model)["McFadden"]
-
-
-
 # predicted data
 data_new$prediction <- stats::predict(model_averaged, type = "response")
-
 
 # create roc curve
 roc_object <- pROC::roc(data_new$ct, data_new$prediction)
 
 train_fraction <- 0.7
-reduced_model_data_interation <- 100
+reduced_model_data_interation <- 5
+
+model_result <- models_exhaust
 # Run the specified number of model averaging iterations
-for(rdmi in 1:reduced_data_model_iteration){
+for(rdmi in 1:reduced_model_data_interation){
 
   # Define data subset for modeling and sample a fraction for model training
   temp_lake_dat <- data_new %>%
     sample_frac(size = train_fraction,
                 weight = as.factor(ct))
 
+  # model_result <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
+  #                           eutro + log10(RT),
+  #                         data   = temp_lake_dat,
+  #                         # crit   = aicc,       # AICC corrected AIC for small samples
+  #                         level  = 1,          # 2 with interactions, 1 without
+  #                         method = "h",        # "d", or "h", or "g"
+  #                         family = "binomial",
+  #                         fitfunction = glm,   # Type of model (LM, GLM etc.)
+  #                         confsetsize = 100)   # Keep 100 best models
 
-  AIC <- rep(0, length(model_result@formulas[c(1:24)]))
-  MODEL <- rep(NA, length(model_result@formulas[c(1:24)]))
-  AUC <- rep(0, length(model_result@formulas[c(1:24)]))
-  RSQUARED <- rep(0, length(model_result@formulas[c(1:24)]))
-  ACCURACY <- rep(0, length(model_result@formulas[c(1:24)]))
-  PVALUE <- rep(0, length(model_result@formulas[c(1:24)]))
-  for(i in 1:length(model_result@formulas[c(1:24)])){
+  #num_models <- length(model_result@crits[model_result@crits <= min(model_result@crits)+2])
+
+  num_models <- 24
+
+  AIC <- rep(0, length(model_result@formulas[c(1:num_models)]))
+  MODEL <- rep(NA, length(model_result@formulas[c(1:num_models)]))
+  AUC <- rep(0, length(model_result@formulas[c(1:num_models)]))
+  RSQUARED <- rep(0, length(model_result@formulas[c(1:num_models)]))
+  ACCURACY <- rep(0, length(model_result@formulas[c(1:num_models)]))
+  PVALUE <- rep(0, length(model_result@formulas[c(1:num_models)]))
+  for(i in 1:length(model_result@formulas[c(1:num_models)])){
     fit <- glm(paste(as.character(model_result@formulas[i])),
                data = temp_lake_dat,
                family = binomial)
@@ -280,7 +221,7 @@ for(rdmi in 1:reduced_data_model_iteration){
     PVALUE[i] <- length(AUC.repo[AUC.repo > AUC[i]])/length(AUC.repo)
 
   }
-  INDEX <- seq(1:length(model_result@formulas[c(1:24)]))
+  INDEX <- seq(1:length(model_result@formulas[c(1:num_models)]))
   lake_fits <- data.frame(INDEX, MODEL, AIC, RSQUARED, AUC, ACCURACY, PVALUE)
   lake_fits$MODEL <- as.character(lake_fits$MODEL)
   lake_fits$AIC <- as.numeric(lake_fits$AIC)
@@ -301,6 +242,45 @@ for(rdmi in 1:reduced_data_model_iteration){
                       .f = ~ glm(formula = .x,
                                  family = "binomial",
                                  data = temp_lake_dat))
+
+  out_path <- "permute_odem_model"
+  # Create export folder if it doesn't exist
+  ifelse(!dir.exists(file.path(out_path)),
+         dir.create(file.path(out_path), recursive = TRUE), FALSE)
+
+  # Export results
+  if(length(lake_mod_fits) == 1) {
+
+    results <- tidy(lake_mod_fits[[1]])
+
+    write.csv(x = results,
+              file = paste0(out_path, "/run_",
+                            rdmi, ".csv"),
+              row.names = FALSE)
+
+  } else if (length(lake_mod_fits) == 0){
+
+    tryCatch(write.csv(x = results,
+                       file = paste0(out_path, "/run_",
+                                     rdmi, ".csv"),
+                       row.names = FALSE), error = function(e) NULL)
+
+  } else {
+
+    all_average <- model.avg(lake_mod_fits)
+
+    results <- data.frame(summary(all_average)$coefmat.subset) %>%
+      rename(estimate = Estimate,
+             std.error = Std..Error,
+             statistic = z.value,
+             p.value = Pr...z..)
+    results$term <- rownames(results)
+
+    write.csv(x = results,
+              file = paste0(out_path, "/run_",
+                            rdmi, ".csv"),
+              row.names = FALSE)
+  }
 
 }
 
