@@ -3,7 +3,7 @@ library(odem.data)
 # setwd('~/Documents/DSI/odem.data/')
 
 
-
+library(broom)
 library(parallel)
 library(MASS)
 library(factoextra)
