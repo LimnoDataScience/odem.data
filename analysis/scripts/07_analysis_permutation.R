@@ -2,7 +2,7 @@ library(odem.data)
 
 # setwd('~/Documents/DSI/odem.data/')
 
-
+library(MuMIn)
 library(broom)
 library(parallel)
 library(MASS)
@@ -141,7 +141,7 @@ models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
           eutro + log10(RT),
         data   = data_new,
         # crit   = aicc,       # AICC corrected AIC for small samples
-        level  = 2,          # 2 with interactions, 1 without
+        level  = 1,          # 2 with interactions, 1 without
         method = "h",        # "d", or "h", or "g"
         family = "binomial",
         fitfunction = glm,   # Type of model (LM, GLM etc.)
@@ -156,7 +156,7 @@ data_new$prediction <- stats::predict(model_averaged, type = "response")
 roc_object <- pROC::roc(data_new$ct, data_new$prediction)
 
 train_fraction <- 0.7
-reduced_model_data_interation <- 5
+reduced_model_data_interation <- 5000
 
 model_result <- models_exhaust
 # Run the specified number of model averaging iterations
@@ -230,13 +230,14 @@ for(rdmi in 1:reduced_model_data_interation){
   lake_fits$ACCURACY <- as.numeric(lake_fits$ACCURACY)
   lake_fits$PVALUE <- as.numeric(lake_fits$PVALUE)
 
-  lake_top_mod$MODEL <- gsub(pattern = "log00", replacement = "log10",
-                             x = lake_top_mod$MODEL)
-
   lake_top_mod <- lake_fits %>%
     filter(AIC <= (min(AIC)+2)) %>%
     filter(RSQUARED >= median(RSQUARED),
            AUC >= median(AUC))
+
+  lake_top_mod$MODEL <- gsub(pattern = "log00", replacement = "log10",
+                             x = lake_top_mod$MODEL)
+
 
   lake_mod_fits <- map(.x = lake_top_mod$MODEL,
                       .f = ~ glm(formula = .x,
