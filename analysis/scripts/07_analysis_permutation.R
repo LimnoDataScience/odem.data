@@ -2,7 +2,7 @@ library(odem.data)
 
 # setwd('~/Documents/DSI/odem.data/')
 
-
+library(MuMIn)
 library(broom)
 library(parallel)
 library(MASS)
@@ -141,13 +141,13 @@ models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
           eutro + log10(RT),
         data   = data_new,
         # crit   = aicc,       # AICC corrected AIC for small samples
-        level  = 2,          # 2 with interactions, 1 without
+        level  = 1,          # 2 with interactions, 1 without
         method = "h",        # "d", or "h", or "g"
         family = "binomial",
         fitfunction = glm,   # Type of model (LM, GLM etc.)
         confsetsize = 100)   # Keep 100 best models
 
-model_averaged <- model.avg(object = models_exhaust@objects[c(1:24)])
+model_averaged <- model.avg(object = models_exhaust@objects[c(1:2)])
 
 # predicted data
 data_new$prediction <- stats::predict(model_averaged, type = "response")
@@ -156,7 +156,7 @@ data_new$prediction <- stats::predict(model_averaged, type = "response")
 roc_object <- pROC::roc(data_new$ct, data_new$prediction)
 
 train_fraction <- 0.7
-reduced_model_data_interation <- 5
+reduced_model_data_interation <- 5000
 
 model_result <- models_exhaust
 # Run the specified number of model averaging iterations
@@ -230,13 +230,14 @@ for(rdmi in 1:reduced_model_data_interation){
   lake_fits$ACCURACY <- as.numeric(lake_fits$ACCURACY)
   lake_fits$PVALUE <- as.numeric(lake_fits$PVALUE)
 
-  lake_top_mod$MODEL <- gsub(pattern = "log00", replacement = "log10",
-                             x = lake_top_mod$MODEL)
-
   lake_top_mod <- lake_fits %>%
     filter(AIC <= (min(AIC)+2)) %>%
     filter(RSQUARED >= median(RSQUARED),
            AUC >= median(AUC))
+
+  lake_top_mod$MODEL <- gsub(pattern = "log00", replacement = "log10",
+                             x = lake_top_mod$MODEL)
+
 
   lake_mod_fits <- map(.x = lake_top_mod$MODEL,
                       .f = ~ glm(formula = .x,
@@ -283,4 +284,68 @@ for(rdmi in 1:reduced_model_data_interation){
   }
 
 }
+
+run_files <- list.files(path = "permute_odem_model",
+                        pattern = "run_", full.names = TRUE)
+
+run_results <- map_df(.x = run_files,
+                      .f = ~ read_csv(.x) %>%
+                        select(estimate, term) %>%
+                        mutate(run_number = .x,
+                               run_number = gsub(pattern = "permute_odem_model/",
+                                                 replacement = "", x = run_number),
+                               run_number = gsub(pattern = ".csv",
+                                                 replacement = "", x = run_number),
+                               term = gsub(pattern = ".1",
+                                           replacement = "", x = term)))
+
+
+paramter_counts <- run_results %>%
+  # filter(estimate >= -20,
+  #        estimate <= 20) %>%
+  unique() %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term = str_replace(pattern = ":", replacement = ".", string = term),
+         term = ifelse(term == "lo0(area)", "area", term),
+         term = ifelse(term == "lo0(RT)", "RT", term),
+         term = ifelse(term == "lo0(depth)", "depth", term)) %>%
+  group_by(term) %>%
+  count() #%>%
+  #mutate(label = paste("Number of models:", n))
+
+run_results_filtered <- run_results %>%
+  ungroup() %>%
+  # filter(estimate >= -10,
+  #        estimate <= 10) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term = str_replace(pattern = ":", replacement = ".", string = term),
+         term = ifelse(term == "lo0(area)", "area", term),
+         term = ifelse(term == "lo0(RT)", "RT", term),
+         term = ifelse(term == "lo0(depth)", "depth", term),
+         #term = str_replace(pattern = "", replacement = "", string = term),
+         est_prob = exp(estimate)/(1+exp(estimate))) %>%
+  unique() %>%
+  inner_join(x = .,
+             y = paramter_counts) %>%
+  mutate(facet_label = paste(term, "(n =", n, ")"))
+
+complete_results <- (model_averaged$coefficients)%>%
+  data.frame() %>%
+  rownames_to_column() %>%
+  filter(rowname == "full") %>%
+  rename("depth" = log10.depth.,
+         "RT" = log10.RT.,
+         "area" = log10.area.) %>%
+  pivot_longer(cols = c(human_impact:RT), names_to = "term", values_to = "estimate")
+
+all_plot <- ggplot() +
+  geom_histogram(data = run_results_filtered, aes(x = est_prob)) +
+  #geom_label(data = paramter_counts, aes(label = label, x = 0, y = 1000)) +
+  #geom_vline(data = complete_results, aes(xintercept = estimate)) +
+  ggtitle("Distribution of subsampled estimate values") +
+  #xlim(-25, 25) +
+  facet_wrap(vars(term), scales = "free_x")
+
+ggsave(file = 'analysis/figures/histogram_probs_params.png',
+        dpi = 600, height = 6, width = 8)
 
