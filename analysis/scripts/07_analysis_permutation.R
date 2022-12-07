@@ -77,7 +77,7 @@ data$fit = info.df$fit_tall[na.omit(match(data$lake,info.df$lake_id))]
 g.rmse.depth <- ggplot(data, aes(fit, depth, col = trophic)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  scale_color_manual(values= c('darkgreen', 'gold')) +
+  scale_color_manual(values= c('brown', 'darkgreen', 'lightblue')) +
   xlab("RMSE (g/m3)") + ylab('Depth (m)') +
   theme_minimal(); g.rmse.depth
 # g.rmse.depth <- ggMarginal(g.rmse.depth)
@@ -85,7 +85,7 @@ g.rmse.depth <- ggplot(data, aes(fit, depth, col = trophic)) +
 g.wsh.area <- ggplot(data, aes(log10(WshA), log10(area), col = trophic)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  scale_color_manual(values= c('darkgreen', 'gold')) +
+  scale_color_manual(values= c('brown', 'darkgreen', 'lightblue')) +
   xlab("Watershed area (log10 m2)") + ylab('Lake area (log10 m2)') +
   theme_minimal(); g.wsh.area
 # g.wsh.area <- ggMarginal(g.wsh.area)
@@ -113,6 +113,7 @@ g.density <- ggplot(data, aes(depth, fill = ct)) +
 g <- ggplot(data, aes(depth, fill = trophic)) +
   geom_density(alpha = 0.25) +
   xlab("Depth (m)") + ylab('Density (-)') +
+  scale_color_manual(values= c('brown', 'darkgreen', 'lightblue')) +
   theme_minimal(); g
 
 fig1 <- gmap / (g.rmse.depth + g.density + g.mos + g.wsh.area) + plot_layout(guides = 'collect') +
@@ -147,7 +148,7 @@ models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
         fitfunction = glm,   # Type of model (LM, GLM etc.)
         confsetsize = 100)   # Keep 100 best models
 
-model_averaged <- model.avg(object = models_exhaust@objects[c(1:24)])
+model_averaged <- model.avg(object = models_exhaust@objects[c(1:2)])
 
 # predicted data
 data_new$prediction <- stats::predict(model_averaged, type = "response")
@@ -284,4 +285,68 @@ for(rdmi in 1:reduced_model_data_interation){
   }
 
 }
+
+run_files <- list.files(path = "permute_odem_model",
+                        pattern = "run_", full.names = TRUE)
+
+run_results <- map_df(.x = run_files,
+                      .f = ~ read_csv(.x) %>%
+                        select(estimate, term) %>%
+                        mutate(run_number = .x,
+                               run_number = gsub(pattern = "permute_odem_model/",
+                                                 replacement = "", x = run_number),
+                               run_number = gsub(pattern = ".csv",
+                                                 replacement = "", x = run_number),
+                               term = gsub(pattern = ".1",
+                                           replacement = "", x = term)))
+
+
+paramter_counts <- run_results %>%
+  # filter(estimate >= -20,
+  #        estimate <= 20) %>%
+  unique() %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term = str_replace(pattern = ":", replacement = ".", string = term),
+         term = ifelse(term == "lo0(area)", "area", term),
+         term = ifelse(term == "lo0(RT)", "RT", term),
+         term = ifelse(term == "lo0(depth)", "depth", term)) %>%
+  group_by(term) %>%
+  count() #%>%
+  #mutate(label = paste("Number of models:", n))
+
+run_results_filtered <- run_results %>%
+  ungroup() %>%
+  # filter(estimate >= -10,
+  #        estimate <= 10) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term = str_replace(pattern = ":", replacement = ".", string = term),
+         term = ifelse(term == "lo0(area)", "area", term),
+         term = ifelse(term == "lo0(RT)", "RT", term),
+         term = ifelse(term == "lo0(depth)", "depth", term),
+         #term = str_replace(pattern = "", replacement = "", string = term),
+         est_prob = exp(estimate)/(1+exp(estimate))) %>%
+  unique() %>%
+  inner_join(x = .,
+             y = paramter_counts) %>%
+  mutate(facet_label = paste(term, "(n =", n, ")"))
+
+complete_results <- (model_averaged$coefficients)%>%
+  data.frame() %>%
+  rownames_to_column() %>%
+  filter(rowname == "full") %>%
+  rename("depth" = log10.depth.,
+         "RT" = log10.RT.,
+         "area" = log10.area.) %>%
+  pivot_longer(cols = c(human_impact:RT), names_to = "term", values_to = "estimate")
+
+all_plot <- ggplot() +
+  geom_histogram(data = run_results_filtered, aes(x = est_prob)) +
+  #geom_label(data = paramter_counts, aes(label = label, x = 0, y = 1000)) +
+  #geom_vline(data = complete_results, aes(xintercept = estimate)) +
+  ggtitle("Distribution of subsampled estimate values") +
+  #xlim(-25, 25) +
+  facet_wrap(vars(term), scales = "free_x")
+
+ggsave(file = 'analysis/figures/histogram_probs_params.png',
+        dpi = 600, height = 6, width = 8)
 
