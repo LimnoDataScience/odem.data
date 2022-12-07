@@ -207,8 +207,9 @@
 
 
         types = m.df.grd %>%
-          group_by(lake) %>%
+          group_by(lake, variable) %>%
           mutate(type = (factor(value))) %>%
+          rename(year = variable) %>%
           summarize(ct = names(which.max(table(type)))) # constant convex linear
 
         landuse = read_csv('lstm/landuse.csv')
@@ -244,6 +245,14 @@
 
         types$Hylak_id <- link$Hylak_id[match(types$lake, link$site_id)]
 
+        troph_df <- troph %>%
+                rename(eutro = `mean_prob_prob_eu/mixo`,
+                       oligo = mean_prob_prob_oligo,
+                       dys = mean_prob_prob_dys) %>%
+                select(Hylak_id, year, eutro, oligo, dys)
+
+        types <- merge(types, troph_df, by = c("Hylak_id", "year"))
+
         # sum(unique(match(troph$Hylak_id, link$Hylak_id)), na.rm = T)
         # # 975470004
         # length(unique(link$site_id[match(troph$Hylak_id, link$Hylak_id)]))
@@ -255,9 +264,9 @@
         # types$site_id <- link$Hylak_id[match(types$lake,link$site_id[match(troph$Hylak_id, link$Hylak_id)])]
         # types$site_id <- link$Hylak_id[match(link$site_id[match(troph$Hylak_id, link$Hylak_id)],types$lake)]
 
-        types$eutro <- troph$`mean_prob_prob_eu/mixo`[match(types$Hylak_id,troph$Hylak_id)]
-        types$dys <- troph$mean_prob_prob_dys[match(types$Hylak_id,troph$Hylak_id)]
-        types$oligo <- troph$mean_prob_prob_oligo[match(types$Hylak_id,troph$Hylak_id)]
+        # types$eutro <- troph$`mean_prob_prob_eu/mixo`[match(types$Hylak_id,troph$Hylak_id)]
+        # types$dys <- troph$mean_prob_prob_dys[match(types$Hylak_id,troph$Hylak_id)]
+        # types$oligo <- troph$mean_prob_prob_oligo[match(types$Hylak_id,troph$Hylak_id)]
 
         # residence times
         library(sf)
@@ -307,6 +316,11 @@
         write_csv(x = types, file = 'analysis/figures/rawdata_nov18.csv', col_names = T)
         write_csv(x = data.frame('nhdhr' = types$lake), file = 'analysis/figures/my_nhdhr.csv', col_names = T)
         write_csv(x = data, file = 'analysis/figures/data_nov18.csv', col_names = T)
+
+        str(data)
+        head(data)
+        dim(data)
+        summary(data)
 
         #
         # data <- read_csv('analysis/figures/data_nov18.csv', col_names = T)
