@@ -119,7 +119,7 @@ g <- ggplot(data, aes(depth, fill = trophic)) +
 fig1 <- gmap / (g.rmse.depth + g.density + g.mos + g.wsh.area) + plot_layout(guides = 'collect') +
   plot_annotation(tag_levels = 'A')
 
-ggsave(file = 'analysis/figures/Figure2.png', fig1, dpi = 600, width =13, height = 15)
+# ggsave(file = 'analysis/figures/Figure2.png', fig1, dpi = 600, width =13, height = 15)
 
 df_data = data[,c("ct", "developed", "forest", "cultivated", "wetlands", "water", "barren",
                   "shrubland", "herbaceous",
@@ -138,7 +138,7 @@ data_new <- data %>%
          depth = log10(depth))
 
 
-models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
+models_exhaust <- glmulti(ct ~ human_impact + log10(area) + (depth) +
           eutro + log10(RT),
         data   = data_new,
         # crit   = aicc,       # AICC corrected AIC for small samples
@@ -148,6 +148,18 @@ models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
         fitfunction = glm,   # Type of model (LM, GLM etc.)
         confsetsize = 100)   # Keep 100 best models
 
+plot(effects::allEffects(models_exhaust@objects[[1]]),
+     lines = list(multiline = T),
+     confint = list(style = "auto"))
+
+weightable(models_exhaust)[1:10,] %>%
+  regulartable() %>%       # beautifying tables
+  autofit()
+
+plot(models_exhaust)
+plot(models_exhaust, type = "s")
+
+
 model_averaged <- model.avg(object = models_exhaust@objects[c(1:2)])
 
 # predicted data
@@ -155,6 +167,10 @@ data_new$prediction <- stats::predict(model_averaged, type = "response")
 
 # create roc curve
 roc_object <- pROC::roc(data_new$ct, data_new$prediction)
+
+table <- table(Reality = data_new$ct,
+               Prediction = ifelse(as.numeric(data_new$prediction) < 0.65, 0, 1) )
+(table[1,1]+table[2+2])/sum(table) * 100
 
 train_fraction <- 0.7
 reduced_model_data_interation <- 5000

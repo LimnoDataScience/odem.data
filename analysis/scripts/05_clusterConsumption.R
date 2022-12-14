@@ -322,6 +322,34 @@
         dim(data)
         summary(data)
 
+        # make plot Figure 2
+        world <- ne_countries(scale = "medium", returnclass = "sf")
+        us <- map_data("state")
+
+        hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
+        # data$RT <- hydLakes$Res_time[match(data$Hylak_id, hydLakes$Hylak_id)]
+
+        lake_shapes <- st_read("inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
+
+        idy <- (match(data$Hylak_id,lake_shapes$Hylak_id))
+        lakes_df <- lake_shapes[idy,]
+        lakes_df$ct <- data$ct
+        lakes_df$lndu <- data$lndu
+
+        gmap <- ggplot(lakes_df, aes(fill = ct)) +
+                geom_sf() +
+                geom_polygon(data = us, aes(x=long, y=lat,
+                                            group = group), color = "black", fill = 'white',
+                             size =.5, alpha = 0) +
+                scale_fill_manual(values= c('red4', 'lightblue1')) +
+                # geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
+                coord_sf(xlim = c(-97.3, -86), ylim = c(42.6, 48.7), expand = FALSE) +
+                xlab('Longitude') + ylab('Latitude') +
+                theme_minimal(); gmap
+
+        g.1 <- g.cluster / gmap + plot_layout(guides = 'collect') +
+                plot_annotation(tag_levels = 'A') + plot_layout(heights = c(1,3))
+        ggsave(file = 'analysis/figures/Fig1.png', g.1,  dpi = 600, width =13, height = 15)
         #
         # data <- read_csv('analysis/figures/data_nov18.csv', col_names = T)
         #
