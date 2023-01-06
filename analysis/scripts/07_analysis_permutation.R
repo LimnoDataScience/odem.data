@@ -1,6 +1,6 @@
 library(odem.data)
 
-# setwd('~/Documents/DSI/odem.data/')
+setwd('~/Documents/DSI/odem.data/')
 
 library(MuMIn)
 library(broom)
@@ -136,6 +136,82 @@ data_new <- data %>%
   mutate(human_impact = developed + cultivated,
          vegetated = forest + wetlands + shrubland,
          depth = log10(depth))
+
+
+data_plot <- data %>%
+  mutate(area = log10(area),
+         depth = log10(depth),
+         RT = log10(RT),
+         WshA = log10(WshA),
+         human_impact = developed + cultivated)
+data_melt <- reshape2::melt(data_plot, id = 'ct')
+
+plot_lowdo <- data_melt %>%
+  filter(ct == 1,
+         variable %in% c('human_impact', 'depth', 'area', 'RT', 'WshA', 'fit')) %>%
+
+  ggplot(aes(x = variable, y = as.numeric(value), fill = variable)) +
+  ggdist::stat_halfeye(
+    adjust = 0.5,
+    justification = -0.2,
+    .width = 0,
+    point_colour = NA
+  ) +
+  geom_boxplot(
+    width = .12,
+    outlier.color = NA,
+    alpha = 0.5
+  ) +
+  # ggdist::stat_dots(
+  #   side = 'left',
+  #   justification = 1.1,
+  #   binwidth = .25
+  # ) +
+  tidyquant::scale_fill_tq() +
+  tidyquant::theme_tq() +
+  labs(
+    title = 'Low DO consumption',
+    subtitle = 'Distribution patterns',
+    x = '',
+    y = '',
+    fill = 'Characteristics'
+  ) +
+  coord_flip()
+
+plot_highdo <- data_melt %>%
+  filter(ct == 0,
+         variable %in% c('human_impact', 'depth', 'area', 'RT', 'WshA', 'fit')) %>%
+
+  ggplot(aes(x = variable, y = as.numeric(value), fill = variable)) +
+  ggdist::stat_halfeye(
+    adjust = 0.5,
+    justification = -0.2,
+    .width = 0,
+    point_colour = NA
+  ) +
+  geom_boxplot(
+    width = .12,
+    outlier.color = NA,
+    alpha = 0.5
+  ) +
+  # ggdist::stat_dots(
+  #   side = 'left',
+  #   justification = 1.1,
+  #   binwidth = .25
+  # ) +
+  tidyquant::scale_fill_tq() +
+  tidyquant::theme_tq() +
+  labs(
+    title = 'High DO consumption',
+    subtitle = 'Distribution patterns',
+    x = '',
+    y = '',
+    fill = 'Characteristics'
+  ) +
+  coord_flip()
+
+fig1 <- (plot_lowdo / plot_highdo) + plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = 'A') & theme(legend.position = 'right')
 
 
 models_exhaust <- glmulti(ct ~ human_impact + log10(area) + (depth) +
@@ -350,19 +426,19 @@ complete_results <- (model_averaged$coefficients)%>%
   data.frame() %>%
   rownames_to_column() %>%
   filter(rowname == "full") %>%
-  rename("depth" = log10.depth.,
+  rename(#"depth" = log10.depth.,
          "RT" = log10.RT.,
          "area" = log10.area.) %>%
   pivot_longer(cols = c(human_impact:RT), names_to = "term", values_to = "estimate")
 
 all_plot <- ggplot() +
-  geom_histogram(data = run_results_filtered, aes(x = est_prob)) +
+  geom_histogram(data = run_results_filtered, aes(x = estimate)) +
   #geom_label(data = paramter_counts, aes(label = label, x = 0, y = 1000)) +
-  #geom_vline(data = complete_results, aes(xintercept = estimate)) +
+  geom_vline(data = complete_results, aes(xintercept = estimate)) +
   ggtitle("Distribution of subsampled estimate values") +
   #xlim(-25, 25) +
   facet_wrap(vars(term), scales = "free_x")
 
-ggsave(file = 'analysis/figures/histogram_probs_params.png',
+ggsave(file = 'analysis/figures/Figure3.png',
         dpi = 600, height = 6, width = 8)
 
