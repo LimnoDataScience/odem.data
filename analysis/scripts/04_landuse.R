@@ -18,6 +18,9 @@ lake.link <- read.csv('../landuse/lake_link.csv')
 lake.information <- read.csv('../landuse/lake_information.csv')
 lake.landuse <- read.csv('../landuse/zone_landuse1.csv')
 
+# landuse_lakeatlas <- read.csv('../landuse/lts_atlas_glcp_waste_bathy_glev.csv')
+# landuse_nlcd <- read.csv('../landuse/lts_nadp_nlcd_glcp_waste_bathy_glev.csv')
+
 landuse <- data.frame('water' = lake.landuse$nlcd_openwater11_pct + lake.landuse$nlcd_icesnow12_pct,
                       'developed' =  lake.landuse$nlcd_devopen21_pct + lake.landuse$nlcd_devlow22_pct +
                         lake.landuse$nlcd_devmed23_pct + lake.landuse$nlcd_devhi24_pct,
@@ -33,6 +36,8 @@ id.of.interest <- gsub(".*_","",lstm.sites$site_id)
 id.model.information <- match(id.of.interest, lake.information$lake_nhdid)
 
 id.of.landuse <- match(lake.information$ws_zoneid[id.model.information], lake.landuse$zoneid)
+
+
 
 landuse.of.interest <- landuse[id.of.landuse,]
 

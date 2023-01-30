@@ -15,7 +15,8 @@ library(zoo)
 library(patchwork)
 library(rnaturalearth)
 library(sf)
-library(ggextra)
+library(ggExtra)
+library(ggmosaic)
 # library(mapview)
 library(data.table)
 library(mlr)
@@ -34,219 +35,131 @@ data <- read_csv('analysis/figures/data_nov18.csv', col_names = T)
 world <- ne_countries(scale = "medium", returnclass = "sf")
 us <- map_data("state")
 
-hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
-data$RT <- hydLakes$Res_time[match(data$Hylak_id, hydLakes$Hylak_id)]
+hydLakes <- read_sf(dsn = "inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
+# data$RT <- hydLakes$Res_time[match(data$Hylak_id, hydLakes$Hylak_id)]
 
-lake_shapes <- st_read("inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
+lake_shapes <- st_read("inst/extdata/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10.shp")
 
 idy <- (match(data$Hylak_id,lake_shapes$Hylak_id))
 lakes_df <- lake_shapes[idy,]
-lakes_df$hypoDO <- data$ct
+lakes_df$ct <- data$ct
 lakes_df$lndu <- data$lndu
 
-ggplot(lakes_df, aes(fill = hypoDO)) +
+ggplot(lakes_df, aes(fill = ct)) +
   theme_minimal() +
   geom_sf() +
   scale_fill_brewer(type = "qual")
 
-gmap <- ggplot(lakes_df, aes(fill = hypoDO,
-                             col = hypoDO)) +
+gmap <- ggplot(lakes_df, aes(fill = ct)) +
   geom_sf() +
   geom_polygon(data = us, aes(x=long, y=lat,
                               group = group), color = "black", fill = 'white',
                size =.5, alpha = 0) +
+  scale_fill_manual(values= c('red4', 'lightblue1')) +
   # geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
   coord_sf(xlim = c(-97.3, -86), ylim = c(42.6, 48.7), expand = FALSE) +
   xlab('Longitude') + ylab('Latitude') +
   theme_minimal(); gmap
 
+## get model performance
+all.dne <- list.files('analysis/')
+all.dne_all <- all.dne[grepl('nhdhr', all.dne)]
 
-ggsave(file = 'analysis/figures/map.png', gmap, dpi = 600, width =15, height = 10)
-
-# check Lake Mendota
-data[which(data$lake == 'nhdhr_143249470'),]
-
-df_data = data[,c("ct", "developed", "forest", "cultivated", "wetlands",
-                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT", "WshA",
-                  "dep_avg", "trophic")]
-df_data_num = df_data[, c("developed", "forest", "cultivated", "wetlands",
-                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT", "WshA",
-                  "dep_avg")]
-df_data_num  = apply(df_data_num, 2, function(x)  scale(x))
-
-df_data = cbind(df_data_num, data[,c("ct","trophic")])
-
-
-normalize <- function(x) {
-  num <- x - min(x)
-  denom <- max(x) - min(x)
-  return (num/denom)
+info.df <- c()
+for (idx in all.dne_all){
+  if (file.exists(paste0('analysis/',idx,'/lakeinfo.txt'))){
+    info.df <- rbind(info.df,read.csv(paste0('analysis/',idx,'/lakeinfo.txt')))
+  }
 }
 
+data$fit = info.df$fit_tall[na.omit(match(data$lake,info.df$lake_id))]
 
-smp_size_1 <- floor(0.75 * nrow(df_data[which(df_data$ct == 'Bad'),]))
-smp_size_2 <- floor(0.75 * nrow(df_data[which(df_data$ct == 'Good'),]))
-# smp_size_3 <- floor(0.75 * nrow(data[which(data$ct == 'SemiBad'),]))
+g.rmse.depth <- ggplot(data, aes(fit, depth, col = trophic)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_color_manual(values= c('darkgreen', 'gold')) +
+  xlab("RMSE (g/m3)") + ylab('Depth (m)') +
+  theme_minimal(); g.rmse.depth
+# g.rmse.depth <- ggMarginal(g.rmse.depth)
 
-## set the seed to make your partition reproducible
-set.seed(123)
-train_ind_1 <- sample(seq_len(nrow(df_data[which(df_data$ct == 'Bad'),])), size = smp_size_1)
-train_ind_2 <- sample(seq_len(nrow(df_data[which(df_data$ct == 'Good'),])), size = smp_size_2)
-# train_ind_3 <- sample(seq_len(nrow(data[which(data$ct == 'SemiBad'),])), size = smp_size_3)
+g.wsh.area <- ggplot(data, aes(log10(WshA), log10(area), col = trophic)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_color_manual(values= c('darkgreen', 'gold')) +
+  xlab("Watershed area (log10 m2)") + ylab('Lake area (log10 m2)') +
+  theme_minimal(); g.wsh.area
+# g.wsh.area <- ggMarginal(g.wsh.area)
 
-train <- df_data[c(train_ind_1,train_ind_2), ]
-test <- df_data[-c(train_ind_1,train_ind_2), ]
+g.mos <- ggplot(data) +
+  geom_mosaic( aes( x = product(ct, trophic), fill = ct)) +
+  xlab("RMSE (g/m3)") + ylab('Depth (m)') +
+  scale_fill_manual(values= c('red4', 'lightblue1')) +
+  theme_minimal()+
+  theme(legend.position = 'none'); g.mos
 
+g.lndu.wsh <- ggplot(data, aes(lndu, log10(WshA))) +
+  geom_boxplot() +
+  xlab("Land use") + ylab('Watershed area (log10 m2)') +
+  geom_jitter(color = 'black', size = 0.4, alpha = 0.9) +
+  theme_minimal(); g.lndu.wsh
 
-# https://jkzorz.github.io/2020/04/04/NMDS-extras.html
+g.density <- ggplot(data, aes(depth, fill = ct)) +
+  geom_density(alpha = 0.5) +
+  xlab("Depth (m)") + ylab('Density (-)') +
+  scale_fill_manual(values= c('red4', 'lightblue1')) +
+  theme_minimal() +
+  theme(legend.position = 'none'); g.density
 
-ext = df_data[, c("developed", "forest", "cultivated", "wetlands",
-                  "depth", "area", "RT", "WshA",
-                  "dep_avg", "eutro", "oligo")]
-ext = df_data[, c('developed' , 'cultivated' , 'depth' , 'oligo' ,'eutro' , 'RT')]
-int = df_data[, c("ct")]
-ext$trophic <- as.numeric(as.factor(ext$trophic))
+g <- ggplot(data, aes(depth, fill = trophic)) +
+  geom_density(alpha = 0.25) +
+  xlab("Depth (m)") + ylab('Density (-)') +
+  theme_minimal(); g
 
-ext_com = as.matrix(ext)
+fig1 <- gmap / (g.rmse.depth + g.density + g.mos + g.wsh.area) + plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = 'A')
 
-#nmds code
-set.seed(123)
-nmds = metaMDS(ext, distance = "euclidean", k =2)
-nmds
+ggsave(file = 'analysis/figures/Figure2.png', fig1, dpi = 600, width =13, height = 15)
 
-en = envfit(nmds, int, permutations = 999, na.rm = TRUE)
-en
+df_data = data[,c("ct", "developed", "forest", "cultivated", "wetlands", "water", "barren",
+                  "shrubland", "herbaceous",
+                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT", "WshA",
+                  "dep_avg", "trophic")]
+df_data_num = df_data[, c("developed", "forest", "cultivated", "wetlands", "water", "barren",
+                          "shrubland", "herbaceous",
+                  "depth", "area", "elev", "eutro", "dys", "oligo", "RT",
+                  "dep_avg")]
 
-plot(nmds)
-plot(en)
+data$ct <- as.numeric(as.factor(data$ct)) - 1
 
-data.scores = as.data.frame(scores(nmds))
-data.scores$trophic <- data$ct
-
-en_coord_cont = as.data.frame(scores(en, "vectors")) * ordiArrowMul(en)
-en_coord_cat = as.data.frame(scores(en, "factors")) * ordiArrowMul(en)
-
-ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
-  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5)
-
-# permanova
-adonis2(as.numeric(as.factor(df_data$ct)) ~ cultivated + depth + oligo, data = df_data,
-        permutations = 999, method = "euclidean", by = "margin")
-
-g.nmds_1d <- ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
-  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5)# +
-  # # scale_colour_manual(values = c("orange", "steelblue", "red4"))  +
-  # geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-  #              data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") +
-  # geom_point(data = en_coord_cat, aes(x = NMDS1, y = NMDS2),
-  #            shape = "diamond", size = 4, alpha = 0.6, colour = "navy") +
-  # geom_text(data = en_coord_cat, aes(x = NMDS1, y = NMDS2+0.04),
-  #           label = row.names(en_coord_cat), colour = "navy", fontface = "bold") +
-  # geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30",
-  #           fontface = "bold", label = row.names(en_coord_cont)) +
-  # theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"),
-  #       panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"),
-  #       axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(),
-  #       legend.title = element_text(size = 10, face = "bold", colour = "grey30"),
-  #       legend.text = element_text(size = 9, colour = "grey30")) +
-  # labs(colour = "Landuse")
-
-g.nmds_2d <- ggplot(data = data.scores, aes(x = NMDS1, y = NMDS3)) +
-  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5)# +
-  # # scale_colour_manual(values = c("orange", "steelblue", "red4"))  +
-  # geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-  #              data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") +
-  # geom_point(data = en_coord_cat, aes(x = NMDS1, y = NMDS2),
-  #            shape = "diamond", size = 4, alpha = 0.6, colour = "navy") +
-  # geom_text(data = en_coord_cat, aes(x = NMDS1, y = NMDS2+0.04),
-  #           label = row.names(en_coord_cat), colour = "navy", fontface = "bold") +
-  # geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30",
-  #           fontface = "bold", label = row.names(en_coord_cont)) +
-  # theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"),
-  #       panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"),
-  #       axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(),
-  #       legend.title = element_text(size = 10, face = "bold", colour = "grey30"),
-  #       legend.text = element_text(size = 9, colour = "grey30")) +
-  # labs(colour = "Landuse")
-
-g.nmds_3d <- ggplot(data = data.scores, aes(x = NMDS2, y = NMDS3)) +
-  geom_point(data = data.scores, aes(colour = trophic), size = 3, alpha = 0.5) #+
-  # # scale_colour_manual(values = c("orange", "steelblue", "red4"))  +
-  # geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-  #              data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") +
-  # geom_point(data = en_coord_cat, aes(x = NMDS1, y = NMDS2),
-  #            shape = "diamond", size = 4, alpha = 0.6, colour = "navy") +
-  # geom_text(data = en_coord_cat, aes(x = NMDS1, y = NMDS2+0.04),
-  #           label = row.names(en_coord_cat), colour = "navy", fontface = "bold") +
-  # geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30",
-  #           fontface = "bold", label = row.names(en_coord_cont)) +
-  # theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"),
-  #       panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"),
-  #       axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(),
-  #       legend.title = element_text(size = 10, face = "bold", colour = "grey30"),
-  #       legend.text = element_text(size = 9, colour = "grey30")) +
-  # labs(colour = "Landuse")
-
-g.nmds = g.nmds_1d + g.nmds_2d + g.nmds_3d; g.nmds
-ggsave(file = 'analysis/figures/nmds.png', g.nmds, dpi = 600, width =14, height = 5)
+data_new <- data %>%
+  mutate(human_impact = developed + cultivated,
+         vegetated = forest + wetlands + shrubland,
+         depth = log10(depth))
 
 
-
-# library(sjPlot)
-
-glmulti(ct   ~ lndu + developed + forest + cultivated + wetlands + depth + area + elev + eutro + dys + oligo + log10(RT) + log10(WshA) + log10(dep_avg) +
-          trophic,
-        data   = data,
-        # crit   = aicc,       # AICC corrected AIC for small samples
-        level  = 1,          # 2 with interactions, 1 without
-        method = "d",        # "d", or "h", or "g"
-        # family = gaussian,
-        fitfunction = multinom,   # Type of model (LM, GLM etc.)
-        confsetsize = 100)   # Keep 100 best models
-
-glmulti(ct   ~ developed + forest + cultivated  + depth + area +  eutro + dys + oligo,
-        data   = data,
+models_exhaust <- glmulti(ct ~ human_impact + log10(area) + log10(depth) +
+          eutro + log10(RT),
+        data   = data_new,
         # crit   = aicc,       # AICC corrected AIC for small samples
         level  = 2,          # 2 with interactions, 1 without
-        method = "g",        # "d", or "h", or "g"
-        # family = gaussian,
-        fitfunction = multinom,   # Type of model (LM, GLM etc.)
+        method = "h",        # "d", or "h", or "g"
+        family = "binomial",
+        fitfunction = glm,   # Type of model (LM, GLM etc.)
         confsetsize = 100)   # Keep 100 best models
 
-test_h <- glmulti(as.factor(ct)   ~ developed + forest + cultivated + wetlands + depth + area + elev +
-                    eutro + dys + oligo + (RT) + (WshA) + (dep_avg) + as.factor(trophic),# + trophic,
-                  data   = df_data,
-                  # crit   = aicc,       # AICC corrected AIC for small samples
-                  level  = 1,          # 2 with interactions, 1 without
-                  method = "h",        # "d", or "h", or "g"
-                  family = binomial,
-                  fitfunction = glm,   # Type of model (LM, GLM etc.)
-                  confsetsize = 100)   # Keep 100 best models
-
-test_h <- glmulti(as.factor(ct)   ~ developed  + cultivated  + depth  +
-                    eutro + dys + oligo + (RT)  ,# + trophic,
-                  data   = df_data,
-                  # crit   = aicc,       # AICC corrected AIC for small samples
-                  level  = 1,          # 2 with interactions, 1 without
-                  method = "h",        # "d", or "h", or "g"
-                  family = binomial,
-                  fitfunction = glm,   # Type of model (LM, GLM etc.)
-                  confsetsize = 100)   # Keep 100 best models
-
-optimal_model_glmulti_exhaustive <- test_h@objects[[1]]
-print(optimal_model_glmulti_exhaustive)
+model_averaged <- model.avg(object = models_exhaust@objects[c(1:24)])
 
 
 
-png(file='analysis/figures/effects.png', width = 25, height = 20, units = "cm",res = 600)
-plot(effects::allEffects(test_h@objects[[6]]),
+png(file='analysis/figures/Figure3.png', width = 25, height = 20, units = "cm",res = 600)
+plot(effects::allEffects(test_h@objects[[1:2]]),
      lines = list(multiline = T),
      confint = list(style = "auto"))
 dev.off()
 
 plot(test_h)
 
-weightable(test_h)[1:6,] %>%
+weightable(test_h)[1:10,] %>%
   regulartable() %>%       # beautifying tables
   autofit()
 
@@ -288,7 +201,7 @@ exp(coef(model))
 head(probability.table <- fitted(model))
 
 # Predicting the values for train dataset
-train$precticed <- predict(model, newdata = train, "class")
+train$precticed <- predict(model_averaged, newdata = train, "class")
 
 # Building classification table
 ctable <- table(train$ct, train$precticed)
@@ -310,54 +223,84 @@ pscl::pR2(model)["McFadden"]
 
 
 # predicted data
-prediction <- predict(model, test, type="probs")
+data_new$prediction <- stats::predict(model_averaged, type = "response")
 
 
 # create roc curve
-roc_object <- multiclass.roc( test$ct, prediction)
+roc_object <- pROC::roc(data_new$ct, data_new$prediction)
+
+train_fraction <- 0.7
+reduced_model_data_interation <- 100
+# Run the specified number of model averaging iterations
+for(rdmi in 1:reduced_data_model_iteration){
+
+  # Define data subset for modeling and sample a fraction for model training
+  temp_lake_dat <- data_new %>%
+    sample_frac(size = train_fraction,
+                weight = as.factor(ct))
 
 
+  AIC <- rep(0, length(model_result@formulas[c(1:24)]))
+  MODEL <- rep(NA, length(model_result@formulas[c(1:24)]))
+  AUC <- rep(0, length(model_result@formulas[c(1:24)]))
+  RSQUARED <- rep(0, length(model_result@formulas[c(1:24)]))
+  ACCURACY <- rep(0, length(model_result@formulas[c(1:24)]))
+  PVALUE <- rep(0, length(model_result@formulas[c(1:24)]))
+  for(i in 1:length(model_result@formulas[c(1:24)])){
+    fit <- glm(paste(as.character(model_result@formulas[i])),
+               data = temp_lake_dat,
+               family = binomial)
+    MODEL[i] <- paste(as.character(model_result@formulas[i]))
+    AIC[i] <- fit$aic
+    predictpr <- predict(fit, type = "response")
+    ROC <- pROC::roc(temp_lake_dat$ct ~ predictpr)
+    temp_lake_dat$PREDICTION <- predictpr
+    AUC[i] <- pROC::auc(ROC)
+    RSQUARED[i] <- 1 - (fit$deviance/fit$null.deviance)
 
-truerel <-data.frame(var = test$ct, value = 1) %>%
-  rownames_to_column() %>%
-  pivot_wider(names_from = var, values_from = value) %>%
-  replace_na(list(Bad = 0,
-                  Good = 0,
-                  #  Convex = 0,
-                  SemiBad = 0)) %>%
-  select(-rowname) %>%
-  rename(Bad_true = Bad,
-         Good_true = Good,
-         # Convex_true = Convex,
-         SemiBad_true = SemiBad) %>%
-  data.frame() %>%
-  bind_cols(., prediction %>%
-              data.frame() %>%
-              select(Bad, Good, SemiBad) %>%
-              rename(Bad_pred_1 = Bad,
-                     Good_pred_1 = Good,
-                     #   Convex_pred_1 = Convex,
-                     SemiBad_pred_1 = SemiBad))
+    temp_lake_dat_permute <- temp_lake_dat %>%
+      dplyr::mutate(PREDICTION = ifelse(as.numeric(PREDICTION) < 0.65, 0, 1))
+    table <- table(Reality = temp_lake_dat_permute$ct,
+                   Prediction = temp_lake_dat_permute$PREDICTION)
+    ACCURACY[i] <- (table[1,1]+table[2+2])/sum(table)
 
-roc_object <- multi_roc(data.frame(truerel))
+    j <- 1
+    nreps <- 1000
+    AUC.repo <- rep(0, nreps)
 
-plot_roc_df <- plot_roc_data(roc_object)
+    for(j in 1:nreps) {
+      temp_lake_dat_permute$ct <- sample(temp_lake_dat_permute$ct,
+                                                   size = length(temp_lake_dat_permute$ct),
+                                                   replace = FALSE)
+      predictpr <- predict(fit, type = "response")
+      ROC <- pROC::roc(temp_lake_dat_permute$ct ~ predictpr, quiet = TRUE,
+                       levels = c(0,1), direction = "<")
+      AUC.repo[j] <- pROC::auc(ROC)
+    }
+    PVALUE[i] <- length(AUC.repo[AUC.repo > AUC[i]])/length(AUC.repo)
 
-aucs <- plot_roc_df %>%
-  select(AUC, Method, Group) %>%
-  filter(!Group %in% c('Micro','Macro'))%>%
-  distinct()
+  }
+  INDEX <- seq(1:length(model_result@formulas[c(1:24)]))
+  lake_fits <- data.frame(INDEX, MODEL, AIC, RSQUARED, AUC, ACCURACY, PVALUE)
+  lake_fits$MODEL <- as.character(lake_fits$MODEL)
+  lake_fits$AIC <- as.numeric(lake_fits$AIC)
+  lake_fits$RSQUARED <- as.numeric(lake_fits$RSQUARED)
+  lake_fits$AUC <- as.numeric(lake_fits$AUC)
+  lake_fits$ACCURACY <- as.numeric(lake_fits$ACCURACY)
+  lake_fits$PVALUE <- as.numeric(lake_fits$PVALUE)
 
-print(aucs)
+  lake_top_mod$MODEL <- gsub(pattern = "log00", replacement = "log10",
+                             x = lake_top_mod$MODEL)
 
-g <- plot_roc_df %>%
-  filter(!Group %in% c('Micro','Macro'))%>%
-  ggplot(., aes(x=1-Specificity,y=Sensitivity,color = Method)) +
-  geom_step() +
-  # geom_text(data=aucs[aucs$Method=='logit',], aes(x=.6,y=.3, label=sprintf('AUC = %.3f',AUC))) +
-  # geom_text(data=aucs[aucs$Method=='mlp',], aes(x=.6,y=.5, label=sprintf('AUC = %.3f',AUC))) +
-  # geom_text(data=aucs[aucs$Method=='xg',], aes(x=.6,y=.7, label=sprintf('AUC = %.3f',AUC))) +
-  scale_color_viridis_d(end=.8) +
-  facet_wrap(~Group) +
-  theme_bw(); g
-ggsave(file = 'analysis/figures/auc.png', g, dpi = 600, width =6, height = 3)
+  lake_top_mod <- lake_fits %>%
+    filter(AIC <= (min(AIC)+2)) %>%
+    filter(RSQUARED >= median(RSQUARED),
+           AUC >= median(AUC))
+
+  lake_mod_fits <- map(.x = lake_top_mod$MODEL,
+                      .f = ~ glm(formula = .x,
+                                 family = "binomial",
+                                 data = temp_lake_dat))
+
+}
+

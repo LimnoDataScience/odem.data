@@ -82,6 +82,16 @@ g6 <- ggplot(info.df) +
   ggtitle(paste0('Median RMSE: ', round(median(info.df$fit_tall),1), ' g/m3')) +
   theme_bw(); g6
 
+g7 <- ggplot(info.df) +
+  geom_point(aes(fit_train, fit_test, col = depth, size = n_obs)) +
+  scale_color_gradient(low = "blue", high = "red") +
+  ylab("Testing RMSE (30%)") + xlab("Training RMSE (70%)") +
+  ggtitle(paste0('Training compared to Testing')) +
+  theme_bw(); g7
+
+
+g <-  (g1 + g2) / (  g3 + g7) +plot_layout(guides = 'collect') + plot_annotation(tag_levels = 'A', title = paste0('Simulated lakes: ',nrow(info.df))); g
+ggsave('analysis/figures/Figure1.png', g, dpi = 600, width =7, height = 5)
 
 g <- ((g1 / g2 / g3)  | (g4 / g5 / g6) )+  plot_layout(guides = 'collect') + plot_annotation(tag_levels = 'A', title = paste0('Simulated lakes: ',nrow(info.df))); g
 ggsave('analysis/figures/process_run.png', g)
