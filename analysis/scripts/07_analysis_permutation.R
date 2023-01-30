@@ -30,7 +30,7 @@ library(pROC)
 library(multiROC)
 
 
-data <- read_csv('analysis/figures/data_nov18.csv', col_names = T)
+data <- read_csv('analysis/figures/data_jan19.csv', col_names = T)
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 us <- map_data("state")
@@ -45,21 +45,21 @@ lakes_df <- lake_shapes[idy,]
 lakes_df$ct <- data$ct
 lakes_df$lndu <- data$lndu
 
-ggplot(lakes_df, aes(fill = ct)) +
-  theme_minimal() +
-  geom_sf() +
-  scale_fill_brewer(type = "qual")
-
-gmap <- ggplot(lakes_df, aes(fill = ct)) +
-  geom_sf() +
-  geom_polygon(data = us, aes(x=long, y=lat,
-                              group = group), color = "black", fill = 'white',
-               size =.5, alpha = 0) +
-  scale_fill_manual(values= c('red4', 'lightblue1')) +
-  # geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
-  coord_sf(xlim = c(-97.3, -86), ylim = c(42.6, 48.7), expand = FALSE) +
-  xlab('Longitude') + ylab('Latitude') +
-  theme_minimal(); gmap
+# ggplot(lakes_df, aes(fill = ct)) +
+#   theme_minimal() +
+#   geom_sf() +
+#   scale_fill_brewer(type = "qual")
+#
+# gmap <- ggplot(lakes_df, aes(fill = ct)) +
+#   geom_sf() +
+#   geom_polygon(data = us, aes(x=long, y=lat,
+#                               group = group), color = "black", fill = 'white',
+#                size =.5, alpha = 0) +
+#   scale_fill_manual(values= c('red4', 'lightblue1')) +
+#   # geom_point(data = data, aes(longitude, latitude, col = lndu, shape = ct, size = depth)) +
+#   coord_sf(xlim = c(-97.3, -86), ylim = c(42.6, 48.7), expand = FALSE) +
+#   xlab('Longitude') + ylab('Latitude') +
+#   theme_minimal(); gmap
 
 ## get model performance
 all.dne <- list.files('analysis/')
@@ -72,7 +72,59 @@ for (idx in all.dne_all){
   }
 }
 
+lake.link <- read.csv('../landuse/lake_link.csv')
+lake.information <- read.csv('../landuse/lake_information.csv')
+lstm.sites <- read.csv('lstm/per_site_results.csv')
+
+id.of.interest <- gsub(".*_","",info.df$lake_id)
+id.model.information <- match(id.of.interest, lake.information$lake_nhdid)
+as.factor(lake.information$lake_states[id.model.information]) %>% count()
+
+
 data$fit = info.df$fit_tall[na.omit(match(data$lake,info.df$lake_id))]
+
+# get another landuse
+
+landuse_nlcd <- read.csv('../landuse/lts_nadp_nlcd_glcp_waste_bathy_glev.csv')
+landuse <- data.frame('year' = landuse_nlcd$year,
+                      'Hylak_id' = landuse_nlcd$Hylak_id,
+                      'developed_nlcd' =  landuse_nlcd$developed_high_intensity + landuse_nlcd$developed_med_intensity +
+                              landuse_nlcd$developed_low_intensity + landuse_nlcd$developed_open_space,
+
+                      'cultivated_nlcd' = landuse_nlcd$cultivated_crops + landuse_nlcd$pasture_hay)
+
+data_merged <- merge(data, landuse, by = c('Hylak_id', 'year'))
+
+developed_interp <- c()
+cultivated_interp <- c()
+for (lakeid in unique(data_merged$Hylak_id)){
+  df <- data_merged %>% filter(Hylak_id == lakeid)
+
+  id.na_dev <- which(!is.na(df$developed_nlcd))
+  id.na_cul <- which(!is.na(df$cultivated_nlcd))
+
+  if (length(id.na_dev) != 0){
+    interpolated_data_dev <- approx(df$year[id.na_dev], df$developed_nlcd[id.na_dev], df$year, rule = 2, method = 'constant')$y
+  } else {
+    interpolated_data_dev <- rep(0, length(df$year))
+  }
+  if (length(id.na_cul) != 0){
+    interpolated_data_cul <- approx(df$year[id.na_cul], df$cultivated_nlcd[id.na_cul], df$year, rule = 2, method = 'constant')$y
+  } else {
+    interpolated_data_cul <-  rep(0, length(df$year))
+  }
+
+
+  developed_interp <- append(developed_interp, interpolated_data_dev)
+  cultivated_interp <- append(cultivated_interp, interpolated_data_cul)
+}
+
+data_merged$developed_nlcd <- developed_interp
+data_merged$cultivated_nlcd <- cultivated_interp
+
+plot(data_merged$developed, data_merged$developed_nlcd)
+plot(data_merged$cultivated, data_merged$cultivated_nlcd)
+
 
 g.rmse.depth <- ggplot(data, aes(fit, depth, col = trophic)) +
   geom_point() +
@@ -116,8 +168,8 @@ g <- ggplot(data, aes(depth, fill = trophic)) +
   scale_color_manual(values= c('brown', 'darkgreen', 'lightblue')) +
   theme_minimal(); g
 
-fig1 <- gmap / (g.rmse.depth + g.density + g.mos + g.wsh.area) + plot_layout(guides = 'collect') +
-  plot_annotation(tag_levels = 'A')
+# fig1 <- gmap / (g.rmse.depth + g.density + g.mos + g.wsh.area) + plot_layout(guides = 'collect') +
+#   plot_annotation(tag_levels = 'A')
 
 # ggsave(file = 'analysis/figures/Figure2.png', fig1, dpi = 600, width =13, height = 15)
 
@@ -130,88 +182,61 @@ df_data_num = df_data[, c("developed", "forest", "cultivated", "wetlands", "wate
                   "depth", "area", "elev", "eutro", "dys", "oligo", "RT",
                   "dep_avg")]
 
-data$ct <- as.numeric(as.factor(data$ct)) - 1
+data_merged$ct <- as.numeric(as.factor(data_merged$ct)) - 1
 
-data_new <- data %>%
-  mutate(human_impact = developed + cultivated,
+data_new <- data_merged %>%
+  mutate(human_impact = developed_nlcd + cultivated_nlcd,
          vegetated = forest + wetlands + shrubland,
          depth = log10(depth))
 
 
-data_plot <- data %>%
+data_plot <- data_merged %>%
   mutate(area = log10(area),
          depth = log10(depth),
          RT = log10(RT),
          WshA = log10(WshA),
-         human_impact = developed + cultivated)
+         human_impact = developed_nlcd + cultivated_nlcd,
+         ct = ifelse(ct == 0, 'High consumption', 'Low consumption'))
 data_melt <- reshape2::melt(data_plot, id = 'ct')
 
-plot_lowdo <- data_melt %>%
-  filter(ct == 1,
-         variable %in% c('human_impact', 'depth', 'area', 'RT', 'WshA', 'fit')) %>%
+landuse_plot <- ggplot(data_plot) +
+  geom_density(aes(human_impact,  fill = ct, group = ct), alpha = 0.3) +
+  scale_fill_manual(values = c('red4','lightblue1'), name = 'Cluster') +
+  xlab('Human impact: developed + cultivated') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
 
-  ggplot(aes(x = variable, y = as.numeric(value), fill = variable)) +
-  ggdist::stat_halfeye(
-    adjust = 0.5,
-    justification = -0.2,
-    .width = 0,
-    point_colour = NA
-  ) +
-  geom_boxplot(
-    width = .12,
-    outlier.color = NA,
-    alpha = 0.5
-  ) +
-  # ggdist::stat_dots(
-  #   side = 'left',
-  #   justification = 1.1,
-  #   binwidth = .25
-  # ) +
-  tidyquant::scale_fill_tq() +
-  tidyquant::theme_tq() +
-  labs(
-    title = 'Low DO consumption',
-    subtitle = 'Distribution patterns',
-    x = '',
-    y = '',
-    fill = 'Characteristics'
-  ) +
-  coord_flip()
+area_plot <- ggplot(data_plot) +
+  geom_density(aes(area,  fill = ct, group = ct), alpha = 0.3) +
+  scale_fill_manual(values = c('red4','lightblue1'), name = 'Cluster') +
+  xlab('log Area') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
 
-plot_highdo <- data_melt %>%
-  filter(ct == 0,
-         variable %in% c('human_impact', 'depth', 'area', 'RT', 'WshA', 'fit')) %>%
+depth_plot <- ggplot(data_plot) +
+  geom_density(aes(depth,  fill = ct, group = ct), alpha = 0.3) +
+  scale_fill_manual(values = c('red4','lightblue1'), name = 'Cluster') +
+  xlab('log Depth') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
 
-  ggplot(aes(x = variable, y = as.numeric(value), fill = variable)) +
-  ggdist::stat_halfeye(
-    adjust = 0.5,
-    justification = -0.2,
-    .width = 0,
-    point_colour = NA
-  ) +
-  geom_boxplot(
-    width = .12,
-    outlier.color = NA,
-    alpha = 0.5
-  ) +
-  # ggdist::stat_dots(
-  #   side = 'left',
-  #   justification = 1.1,
-  #   binwidth = .25
-  # ) +
-  tidyquant::scale_fill_tq() +
-  tidyquant::theme_tq() +
-  labs(
-    title = 'High DO consumption',
-    subtitle = 'Distribution patterns',
-    x = '',
-    y = '',
-    fill = 'Characteristics'
-  ) +
-  coord_flip()
+RT_plot <- ggplot(data_plot) +
+  geom_density(aes(RT, fill = ct, group = ct), alpha = 0.3) +
+  scale_fill_manual(values = c('red4','lightblue1'), name = 'Cluster') +
+  xlab('log Residence time') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
 
-fig1 <- (plot_lowdo / plot_highdo) + plot_layout(guides = 'collect') +
-  plot_annotation(tag_levels = 'A') & theme(legend.position = 'right')
+eutro_plot <- ggplot(data_plot) +
+  geom_density(aes(eutro, fill = ct, group = ct), alpha = 0.3) +
+  scale_fill_manual(values = c('red4','lightblue1'), name = 'Cluster') +
+  xlab('Eutrophic probability') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
+
+fig2 <- landuse_plot +area_plot +depth_plot +eutro_plot +RT_plot + plot_layout(guides = 'collect')  +
+  plot_annotation(tag_levels = 'A') & theme(legend.position = 'bottom')
+ggsave(file = 'analysis/figures/Figure2.png', fig2,  dpi = 600, width =13, height = 8)
 
 
 models_exhaust <- glmulti(ct ~ human_impact + log10(area) + (depth) +
@@ -245,9 +270,56 @@ data_new$prediction <- stats::predict(model_averaged, type = "response")
 roc_object <- pROC::roc(data_new$ct, data_new$prediction)
 
 table <- table(Reality = data_new$ct,
-               Prediction = ifelse(as.numeric(data_new$prediction) < 0.65, 0, 1) )
+               Prediction = ifelse(as.numeric(data_new$prediction) <= 0.50, 0, 1) )
 (table[1,1]+table[2+2])/sum(table) * 100
 
+data_new = data_new %>%
+  mutate(prediction_ct = ifelse(as.numeric(data_new$prediction) <= 0.50, 0, 1),
+         flag = ifelse(ct == prediction_ct, T, F))
+summary(data_new$flag)
+
+
+landuse_plot_flag <- ggplot(data_new) +
+  geom_histogram(aes(human_impact,  fill = flag, group = flag), alpha = 0.3, position="identity") +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800"), name = '') +
+  xlab('Human impact: developed + cultivated') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
+
+area_plot_flag <- ggplot(data_new) +
+  geom_histogram(aes(area,  fill = flag, group = flag), alpha = 0.3, position="identity") +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800"), name = '') +
+  xlab('log Area') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
+
+depth_plot_flag <- ggplot(data_new) +
+  geom_histogram(aes(depth,  fill = flag, group = flag), alpha = 0.3, position="identity") +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800"), name = '') +
+  xlab('log Depth') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
+
+RT_plot_flag <- ggplot(data_new) +
+  geom_histogram(aes(RT, fill = flag, group = flag), alpha = 0.3, position="identity") +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800"), name = '') +
+  xlab('log Residence time') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
+
+eutro_plot_flag <- ggplot(data_new) +
+  geom_histogram(aes(eutro, fill = flag, group = flag), alpha = 0.3, position="identity") +
+  scale_fill_manual(values = c("#00AFBB", "#E7B800"), name = '') +
+  xlab('Eutrophic probability') +
+  ylab('Density') +
+  theme_minimal(base_size = 15)
+
+fig4 <- landuse_plot_flag +area_plot_flag +depth_plot_flag +eutro_plot_flag +RT_plot_flag+ plot_layout(guides = 'collect')  +
+  plot_annotation(tag_levels = 'A') & theme(legend.position = 'bottom')
+ggsave(file = 'analysis/figures/Figure4.png', fig4,  dpi = 600, width =13, height = 8)
+
+
+### permutation analysis
 train_fraction <- 0.7
 reduced_model_data_interation <- 5000
 
@@ -431,13 +503,28 @@ complete_results <- (model_averaged$coefficients)%>%
          "area" = log10.area.) %>%
   pivot_longer(cols = c(human_impact:RT), names_to = "term", values_to = "estimate")
 
+run_results_filtered_plot <- run_results_filtered %>%
+  mutate(term = ifelse(term == 'human_impact', 'Human impact', term),
+         term = ifelse(term == 'area', 'Area', term),
+         term = ifelse(term == 'depth', 'Depth', term),
+         term = ifelse(term == 'eutro', 'Eutrophic probability', term),
+         term = ifelse(term == 'RT', 'Residence time', term))
+
+complete_results_plot <- complete_results %>%
+  mutate(term = ifelse(term == 'human_impact', 'Human impact', term),
+         term = ifelse(term == 'area', 'Area', term),
+         term = ifelse(term == 'depth', 'Depth', term),
+         term = ifelse(term == 'eutro', 'Eutrophic probability', term),
+         term = ifelse(term == 'RT', 'Residence time', term))
+
 all_plot <- ggplot() +
-  geom_histogram(data = run_results_filtered, aes(x = estimate)) +
+  geom_histogram(data = run_results_filtered_plot, aes(x = estimate)) +
   #geom_label(data = paramter_counts, aes(label = label, x = 0, y = 1000)) +
-  geom_vline(data = complete_results, aes(xintercept = estimate)) +
+  geom_vline(data = complete_results_plot, aes(xintercept = estimate)) +
   ggtitle("Distribution of subsampled estimate values") +
   #xlim(-25, 25) +
-  facet_wrap(vars(term), scales = "free_x")
+  facet_wrap(vars(term), scales = "free_x")+ xlab('Parameter estimate') + ylab('Count') +
+  theme_minimal(base_size = 15)
 
 ggsave(file = 'analysis/figures/Figure3.png',
         dpi = 600, height = 6, width = 8)
